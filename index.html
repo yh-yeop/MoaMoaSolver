@@ -23,6 +23,7 @@
   --dot:#4A7DFF;
   --swap:#C47CF2;
   --danger:#FF7A7A;
+  --ok:#7DDB9B;
   --radius:12px;
   --font:'Pretendard','Malgun Gothic','Apple SD Gothic Neo',system-ui,sans-serif;
   --mono:ui-monospace,'Cascadia Mono',Consolas,monospace;
@@ -47,8 +48,8 @@ button:disabled{cursor:not-allowed;opacity:.45}
 .brand b{color:var(--accent)}
 .modes{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:2px}
 .mode{border:0;background:none;padding:4px 12px;border-radius:7px;color:var(--dim);font-size:13px}
-.mode.on{background:var(--panel-2);color:var(--text)}
-.actions{display:flex;gap:6px;margin-left:auto}
+.mode[aria-pressed="true"]{background:var(--panel-2);color:var(--text)}
+.actions{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto}
 .btn{
   border:1px solid var(--line);background:var(--panel);border-radius:8px;
   padding:6px 12px;font-size:13px;white-space:nowrap;
@@ -57,21 +58,24 @@ button:disabled{cursor:not-allowed;opacity:.45}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
 .btn.ghost{background:none}
 .btn.sm{padding:3px 9px;font-size:12px}
+.btn[aria-pressed="true"]{border-color:var(--accent);background:rgba(79,209,197,.1)}
 .status{
   display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--dim);
   padding:3px 10px;border:1px solid var(--line);border-radius:999px;white-space:nowrap;
 }
 .status::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--faint)}
-.status[data-state="demo"]::before{background:var(--gold)}
+.status[data-tone="busy"]::before{background:var(--gold)}
+.status[data-tone="ok"]::before{background:var(--ok)}
+.status[data-tone="warn"]::before{background:var(--danger)}
 
 /* 레이아웃 */
 .layout{
   display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,380px);gap:16px;
-  max-width:1120px;margin:0 auto;padding:16px;
+  max-width:1180px;margin:0 auto;padding:16px;
 }
 @media (max-width:860px){.layout{grid-template-columns:minmax(0,1fr)}}
 .side{display:flex;flex-direction:column;gap:16px;min-width:0}
-.panel{background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--radius);padding:14px}
+.panel{background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--radius);padding:14px;min-width:0}
 .panel-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-bottom:12px}
 .panel h2{font-size:14px;font-weight:700;letter-spacing:-.01em}
 .panel h2 small{font-weight:400;color:var(--faint);font-size:12px;margin-left:6px}
@@ -85,7 +89,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
   border-radius:8px;padding:4px 10px;font-size:12px;color:var(--dim);
 }
 .tool[aria-checked="true"]{border-color:var(--accent);color:var(--text);background:rgba(79,209,197,.08)}
-.sw{width:10px;height:10px;border-radius:3px;display:inline-block}
+.sw{width:10px;height:10px;border-radius:3px;display:inline-block;flex:none}
 .sw.fill{background:var(--pink)}
 .sw.dot{background:none;border:2px solid var(--dot);border-radius:50%}
 .sw.swap{background:var(--swap)}
@@ -102,13 +106,22 @@ button:disabled{cursor:not-allowed;opacity:.45}
   min-width:0;
 }
 .hand-card:hover{border-color:var(--faint)}
+.hand-card.now{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
+.hand-card.swap{border-color:var(--swap);box-shadow:0 0 0 1px var(--swap) inset}
 .hc-idx{position:absolute;top:5px;left:8px;font-size:11px;color:var(--faint);font-family:var(--mono)}
+.hc-badge{
+  position:absolute;top:4px;right:6px;font-size:11px;font-weight:700;padding:0 6px;border-radius:6px;
+  background:var(--gold);color:#2A2108;
+}
+.hand-card.swap .hc-badge{background:var(--swap);color:#230B33}
 .hc-meta{font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .hc-meta b{color:var(--text);font-weight:600}
 .mini-box{height:66px;display:flex;align-items:center;justify-content:center}
 .mini{display:grid;gap:1px}
 .mini span{width:10px;height:10px;border-radius:2px}
 .mini span.on{background:var(--pink)}
+.mini.sm span{width:7px;height:7px}
+.mini.gold span.on{background:var(--gold)}
 .mini-empty{font-size:12px;color:var(--faint)}
 
 /* 능력 */
@@ -127,6 +140,29 @@ button:disabled{cursor:not-allowed;opacity:.45}
 /* 추천 */
 .reco-empty{color:var(--faint);font-size:13px}
 .reco-empty p + p{margin-top:4px}
+.reco-card{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px}
+.reco-card.kind-dot{border-color:var(--dot)}
+.reco-card.kind-swap{border-color:var(--swap)}
+.reco-top{display:flex;gap:12px;align-items:flex-start}
+.reco-shape{flex:none;min-width:44px;display:flex;justify-content:center;padding-top:2px}
+.reco-label{font-size:11px;color:var(--gold);font-weight:700;letter-spacing:.04em}
+.reco-text{font-size:14px;font-weight:600;line-height:1.45;margin-top:2px;word-break:keep-all}
+.reco-reasons{margin:10px 0 0 16px;font-size:12px;color:var(--dim)}
+.reco-reasons li + li{margin-top:2px}
+.reco-seq{margin-top:10px;font-size:12px;color:var(--dim);display:grid;gap:3px}
+.reco-seq b{color:var(--text);font-weight:600}
+.reco-foot{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}
+.reco-score{font-family:var(--mono);font-size:13px;color:var(--gold)}
+.reco-alts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:10px}
+.alt{
+  border:1px solid var(--line);background:none;border-radius:8px;padding:5px 6px;font-size:12px;text-align:left;
+  display:flex;flex-direction:column;min-width:0;
+}
+.alt[aria-pressed="true"]{border-color:var(--gold);background:rgba(243,201,105,.08)}
+.alt span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.alt .mono{font-family:var(--mono);color:var(--dim);font-size:11px}
+.reco-notes{margin-top:8px;font-size:12px;color:var(--gold)}
+.reco-stats{margin-top:8px;font-size:11px;color:var(--faint);font-family:var(--mono)}
 
 /* 디버그 */
 .debug summary{cursor:pointer;font-weight:700;font-size:14px}
@@ -139,6 +175,9 @@ button:disabled{cursor:not-allowed;opacity:.45}
   background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 8px;resize:vertical;
 }
 .row-btns{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.tests{margin-top:8px;font-size:12px;display:grid;gap:3px}
+.tests .pass{color:var(--ok)}
+.tests .fail{color:var(--danger)}
 
 /* 설정 서랍 */
 .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:40}
@@ -158,12 +197,11 @@ button:disabled{cursor:not-allowed;opacity:.45}
 .field{display:grid;grid-template-columns:minmax(0,1fr) 130px;align-items:center;gap:4px 10px;padding:5px 0}
 .field .f-label{font-size:13px}
 .field .f-desc{display:block;font-size:11px;color:var(--faint)}
-.field input[type="number"],.field input[type="text"]{
+.field input[type="number"],.field input[type="text"],.field select{
   width:100%;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:4px 8px;
   font-family:var(--mono);font-size:12px;
 }
 .field input.invalid{border-color:var(--danger)}
-.field.range{grid-template-columns:minmax(0,1fr) 130px}
 .range-ctl{display:flex;align-items:center;gap:8px}
 .range-ctl input{flex:1;min-width:0;accent-color:var(--accent)}
 .range-ctl output{font-family:var(--mono);font-size:12px;width:34px;text-align:right}
@@ -171,14 +209,23 @@ button:disabled{cursor:not-allowed;opacity:.45}
   display:inline-block;font-size:10px;padding:0 5px;border-radius:4px;margin-left:5px;vertical-align:1px;
   color:var(--gold);border:1px solid rgba(243,201,105,.4);
 }
-.kv{display:flex;justify-content:space-between;font-size:13px;padding:3px 0}
-.kv span:last-child{color:var(--dim)}
+.kv{display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:3px 0}
+.kv span:last-child{color:var(--dim);text-align:right}
+.dict-list{display:grid;gap:6px;margin-top:8px}
+.dict-item{
+  display:grid;grid-template-columns:52px minmax(0,1fr) auto;align-items:center;gap:10px;
+  background:var(--panel-2);border:1px solid var(--line-soft);border-radius:8px;padding:6px 8px;
+}
+.dict-item .mini-box{height:44px}
+.dict-item input{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:2px 6px;font-size:13px}
+.dict-item .hint{display:block;margin-top:2px}
 
-/* 조각 편집 대화상자 */
+/* 대화상자 */
 .dialog{
   margin:auto;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:14px;
   padding:16px;width:min(340px,calc(100vw - 32px));
 }
+.dialog.wide{width:min(560px,calc(100vw - 32px))}
 .dialog::backdrop{background:rgba(0,0,0,.55)}
 .dialog h3{font-size:15px;margin-bottom:12px}
 .edit-grid{
@@ -190,7 +237,21 @@ button:disabled{cursor:not-allowed;opacity:.45}
 .pd-info{text-align:center;font-size:12px;color:var(--dim);margin:10px 0 12px;min-height:1.5em}
 .pd-info.warn{color:var(--gold)}
 .dialog .field{grid-template-columns:auto minmax(0,1fr)}
+.check{display:flex;align-items:center;gap:8px;font-size:13px;padding:4px 0}
+.check input{accent-color:var(--accent)}
 .pd-actions{display:flex;gap:6px;margin-top:14px}
+
+/* 시뮬레이터 */
+.sim-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px}
+@media (max-width:520px){.sim-grid{grid-template-columns:minmax(0,1fr)}}
+.sim-out{margin-top:12px;font-size:12px}
+.sim-out table{width:100%;border-collapse:collapse;font-family:var(--mono)}
+.sim-out th,.sim-out td{padding:4px 6px;border-bottom:1px solid var(--line-soft);text-align:right;white-space:nowrap}
+.sim-out th:first-child,.sim-out td:first-child{text-align:left}
+.sim-out th{color:var(--faint);font-weight:400}
+.sim-log{margin-top:8px;max-height:140px;overflow:auto;color:var(--dim);font-family:var(--mono);font-size:11px;white-space:pre-wrap}
+.progress{height:4px;background:var(--line-soft);border-radius:2px;margin-top:10px;overflow:hidden}
+.progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
 
 /* 알림 */
 .toast{
@@ -198,6 +259,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
   background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:8px 14px;font-size:13px;
   box-shadow:0 6px 24px rgba(0,0,0,.4);max-width:calc(100vw - 32px);
 }
+kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;color:var(--dim)}
 </style>
 </head>
 <body>
@@ -205,13 +267,11 @@ button:disabled{cursor:not-allowed;opacity:.45}
 <header class="topbar">
   <div class="brand">한글 모아모아 <b>솔버</b></div>
   <div class="modes" role="group" aria-label="모드">
-    <button class="mode on" type="button" aria-pressed="true">데모</button>
-    <button class="mode" type="button" aria-pressed="false" disabled title="3단계(캡처)에서 구현">화면 공유</button>
+    <button class="mode" type="button" data-mode="demo" aria-pressed="true">데모</button>
+    <button class="mode" type="button" data-mode="live" aria-pressed="false" disabled title="3단계(캡처)에서 구현">화면 공유</button>
   </div>
-  <span class="status" id="status" data-state="demo">공유 전 · 데모 모드</span>
+  <span class="status" id="status">데모 모드</span>
   <div class="actions">
-    <button class="btn" type="button" disabled title="3단계(캡처)에서 구현">공유 시작</button>
-    <button class="btn" type="button" disabled title="3단계(캡처)에서 구현">캘리브레이션</button>
     <button class="btn" type="button" id="btnSettings">설정</button>
   </div>
 </header>
@@ -238,23 +298,30 @@ button:disabled{cursor:not-allowed;opacity:.45}
       <div class="hand" id="hand"></div>
     </section>
 
+    <section class="panel" aria-labelledby="recoTitle">
+      <div class="panel-head">
+        <h2 id="recoTitle">추천</h2>
+        <span class="spacer"></span>
+        <span class="hint"><kbd>Space</kbd> 다시 계산 · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> 대안</span>
+      </div>
+      <div id="reco"></div>
+    </section>
+
     <section class="panel" aria-labelledby="abTitle">
       <div class="panel-head"><h2 id="abTitle">능력 · 진행</h2></div>
       <div class="steppers" id="steppers"></div>
       <p class="ab-summary" id="abSummary"></p>
     </section>
 
-    <section class="panel" aria-labelledby="recoTitle">
-      <div class="panel-head"><h2 id="recoTitle">추천</h2></div>
-      <div class="reco-empty" id="reco"></div>
-    </section>
-
-    <details class="panel debug">
+    <details class="panel debug" id="debugPanel">
       <summary>디버그 · 상태</summary>
       <pre id="debugState"></pre>
       <div class="row-btns">
         <button class="btn sm" type="button" id="btnCopyState">상태 JSON 복사</button>
+        <button class="btn sm" type="button" id="btnSelfTest">자체 테스트</button>
+        <button class="btn sm" type="button" id="btnSim">시뮬레이터</button>
       </div>
+      <div class="tests" id="testOut"></div>
       <textarea id="stateInput" spellcheck="false" placeholder="상태 JSON을 붙여 넣고 '적용'을 누르면 판·손패·능력이 바뀝니다."></textarea>
       <div class="row-btns">
         <button class="btn sm" type="button" id="btnApplyState">적용</button>
@@ -273,8 +340,8 @@ button:disabled{cursor:not-allowed;opacity:.45}
   <div id="settingsBody"></div>
   <div class="group">
     <h3>조각 사전</h3>
-    <span class="hint">4단계에서 손패 인식 결과를 쌓습니다. JSON으로 옮길 수 있습니다.</span>
-    <div class="kv"><span>저장된 조각</span><span id="dictCount">0종</span></div>
+    <span class="hint">손패에서 이름을 붙여 저장한 모양입니다. 회전·반전이 달라도 같은 조각으로 알아봅니다. '배치 불가 조각' 평가와 바꿔 뽑기 판단, 시뮬레이터에 쓰입니다.</span>
+    <div class="dict-list" id="dictList"></div>
     <div class="row-btns">
       <button class="btn sm" type="button" id="btnDictExport">내보내기</button>
       <button class="btn sm" type="button" id="btnDictImport">가져오기</button>
@@ -298,6 +365,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
     <div class="edit-grid" id="editGrid"></div>
     <p class="pd-info" id="pdInfo"></p>
     <label class="field"><span class="f-label">이름</span><input type="text" id="pdName" maxlength="8" placeholder="선택 · 예) ㅏ" autocomplete="off" /></label>
+    <label class="check"><input type="checkbox" id="pdDict" checked /> 조각 사전에도 저장</label>
     <div class="pd-actions">
       <button class="btn sm ghost" type="button" id="pdClear">비우기</button>
       <span class="spacer"></span>
@@ -305,6 +373,22 @@ button:disabled{cursor:not-allowed;opacity:.45}
       <button class="btn sm primary" value="save">저장</button>
     </div>
   </form>
+</dialog>
+
+<dialog class="dialog wide" id="simDialog" aria-labelledby="simTitle">
+  <h3 id="simTitle">시뮬레이터</h3>
+  <p class="hint">조각 사전에서 무작위로 손패를 뽑아 솔버가 끝까지 플레이합니다. 같은 시드로 가중치 묶음을 비교하므로 차이는 가중치 때문입니다. 능력은 막혔을 때만 씁니다.</p>
+  <div class="sim-grid" id="simFields"></div>
+  <div class="row-btns">
+    <button class="btn sm primary" type="button" id="simCompare">현재 vs 기본 가중치 비교</button>
+    <button class="btn sm" type="button" id="simTune">자동 조정</button>
+    <button class="btn sm" type="button" id="simStop" disabled>중지</button>
+    <span class="spacer"></span>
+    <button class="btn sm" type="button" id="simClose">닫기</button>
+  </div>
+  <div class="progress"><i id="simBar"></i></div>
+  <div class="sim-out" id="simOut"></div>
+  <div class="sim-log" id="simLog"></div>
 </dialog>
 
 <div class="toast" id="toast" role="status" hidden></div>
@@ -325,6 +409,7 @@ const config = (() => {
     gravity: false,                           // 줄 삭제 후 위 칸은 내려오지 않음 (확인)
     handSize: 3,                              // 3개를 모두 놓아야 리필 (확인)
     keepUnusedPieces: true,                   // 일부만 쓰고 멈추면 남은 조각 유지 (미확인)
+    dotCountsAsPlacement: true,               // 점 찍기 1칸도 배치 점수를 받음 (미확인)
     abilityCap: 7,                            // 능력 보유 한도 (확인)
     abilityScore: 50,                         // 능력 획득 점수 (확인)
     abilityOdds: { dot: 0.4, swap: 0.6 },     // 능력 종류 확률 (확인)
@@ -346,14 +431,19 @@ const config = (() => {
     { key: 'stuckNoAbility', value: -2000, label: '막힘 (능력 0개)',   desc: '능력 없이 놓을 수 없는 조각이 생김' },
   ];
 
-  const SOLVER = { budgetMs: 700, beamWidth: 32, thetaDot: 300, thetaSwap: 300 };
+  const SOLVER = { budgetMs: 700, beamWidth: 16, thetaDot: 300, thetaSwap: 300, swapMinDict: 4 };
 
   // 인식 임계값은 실제 화면에서 정한다. 아래는 슬라이더의 시작 위치일 뿐이다.
   const RECOG = { tFill: 15, tGloss: 30 };
 
+  // 시뮬레이터 기본값. iconEvery는 미확인 규칙이라 시뮬레이션 가정값으로만 쓴다.
+  const SIM = { games: 20, maxTurns: 80, iconEvery: 7, beam: 4, seed: 1 };
+
   const SETTINGS_VERSION = 1;
 
   function clone(v) { return JSON.parse(JSON.stringify(v)); }
+
+  function defaultWeights() { return Object.fromEntries(WEIGHTS.map(w => [w.key, w.value])); }
 
   function defaultSettings() {
     return {
@@ -364,8 +454,9 @@ const config = (() => {
       tFill: RECOG.tFill,
       tGloss: RECOG.tGloss,
       rules: clone(RULES),
-      weights: Object.fromEntries(WEIGHTS.map(w => [w.key, w.value])),
+      weights: defaultWeights(),
       solver: clone(SOLVER),
+      sim: clone(SIM),
     };
   }
 
@@ -387,7 +478,7 @@ const config = (() => {
     return hi === undefined ? `${lo}줄 이상` : `${lo}~${hi - 1}줄`;
   }
 
-  return { RULES, WEIGHTS, SOLVER, RECOG, SETTINGS_VERSION, clone, defaultSettings, lineScore, stageOf, stageRange };
+  return { RULES, WEIGHTS, SOLVER, RECOG, SIM, SETTINGS_VERSION, clone, defaultWeights, defaultSettings, lineScore, stageOf, stageRange };
 })();
 
 /* ================================================================
@@ -436,29 +527,26 @@ const storage = (() => {
 })();
 
 /* ================================================================
- * pieces — 칸 좌표 정규화와 판 비트 연산.
- * 방향 8가지 생성과 조각 사전 정규화는 2단계에서 추가한다.
+ * 솔버 코어 — 조각 방향, 규칙 적용, 평가, 빔 탐색, 능력 판단, 시뮬레이터.
+ * Worker 안에서도 그대로 돌도록 바깥 변수를 쓰지 않는 함수 하나로 둔다.
  * ================================================================ */
-const pieces = (() => {
-  const EDIT_SIZE = 6;
+function coreFactory() {
+  const ROWS = 16, COLS = 10, FULL = (1 << COLS) - 1;
+  const now = () => performance.now();
 
   function popcount(x) {
-    let n = 0;
-    while (x) { x &= x - 1; n++; }
-    return n;
+    x -= (x >> 1) & 0x55555555;
+    x = (x & 0x33333333) + ((x >> 2) & 0x33333333);
+    return (((x + (x >> 4)) & 0x0F0F0F0F) * 0x01010101) >>> 24;
   }
 
-  const getBit = (rows, r, c) => (rows[r] >> c) & 1;
-  function setBit(rows, r, c, on) {
-    if (on) rows[r] |= 1 << c;
-    else rows[r] &= ~(1 << c);
-  }
+  /* ---------- 조각 ---------- */
 
   // 좌상단을 (0,0)에 맞추고 정렬·중복 제거
-  function normalizeCells(cells) {
+  function normalize(cells) {
     if (!cells.length) return [];
-    const minR = Math.min(...cells.map(p => p[0]));
-    const minC = Math.min(...cells.map(p => p[1]));
+    let minR = Infinity, minC = Infinity;
+    for (const [r, c] of cells) { if (r < minR) minR = r; if (c < minC) minC = c; }
     const seen = new Set();
     const out = [];
     for (const [r, c] of cells) {
@@ -468,6 +556,687 @@ const pieces = (() => {
       out.push([r - minR, c - minC]);
     }
     return out.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  }
+
+  const cellsKey = cells => cells.map(p => p[0] + ',' + p[1]).join(' ');
+
+  // 반전을 먼저(좌우), 그다음 시계 방향 90° 회전을 rot번
+  function transform(cells, flip, rot) {
+    let pts = cells.map(([r, c]) => [r, flip ? -c : c]);
+    for (let i = 0; i < rot; i++) pts = pts.map(([r, c]) => [c, -r]);
+    return pts;
+  }
+
+  // 회전 4 × 반전 2 중 모양이 다른 것만. 같은 모양이면 버튼을 덜 누르는 조합을 남긴다.
+  function orientations(cells) {
+    const best = new Map();
+    for (let flip = 0; flip < 2; flip++) {
+      for (let rot = 0; rot < 4; rot++) {
+        const pts = normalize(transform(cells, flip, rot));
+        const key = cellsKey(pts);
+        const presses = flip + rot;
+        const prev = best.get(key);
+        if (!prev || presses < prev.presses) best.set(key, { pts, flip, rot, presses });
+      }
+    }
+    return [...best.values()]
+      .sort((a, b) => a.presses - b.presses || a.flip - b.flip || a.rot - b.rot)
+      .map(({ pts, flip, rot }) => {
+        let h = 0, w = 0;
+        for (const [r, c] of pts) { if (r + 1 > h) h = r + 1; if (c + 1 > w) w = c + 1; }
+        const rows = new Array(h).fill(0);
+        for (const [r, c] of pts) rows[r] |= 1 << c;
+        return { rows, w, h, flip, rot, n: pts.length, cells: pts };
+      });
+  }
+
+  function canonicalKey(cells) {
+    let best = null;
+    for (let flip = 0; flip < 2; flip++) {
+      for (let rot = 0; rot < 4; rot++) {
+        const k = cellsKey(normalize(transform(cells, flip, rot)));
+        if (best === null || k < best) best = k;
+      }
+    }
+    return best;
+  }
+
+  const geomCache = new Map();
+  function makePiece(src) {
+    const cells = normalize(src.cells);
+    const ck = cellsKey(cells);
+    let g = geomCache.get(ck);
+    if (!g) {
+      g = { cells, n: cells.length, key: canonicalKey(cells), orients: orientations(cells) };
+      geomCache.set(ck, g);
+    }
+    return { ...g, name: src.name || '' };
+  }
+
+  /* ---------- 규칙 ---------- */
+
+  function lineScore(rules, n) {
+    return n < rules.lineScore.length ? rules.lineScore[n] : rules.lineScoreBase * n * n;
+  }
+
+  function fits(board, o, r, c) {
+    for (let i = 0; i < o.h; i++) if (board[r + i] & (o.rows[i] << c)) return false;
+    return true;
+  }
+
+  // 놓은 뒤 r0~r1 행 중 가득 찬 행을 지운다. 낙하 없음, 지운 행의 능력 아이콘은 획득.
+  function finishMove(nb, items, r0, r1) {
+    let lines = 0, gotDot = 0, gotSwap = 0, clearedMask = 0;
+    let nItems = items;
+    for (let r = r0; r <= r1; r++) {
+      if (nb[r] !== FULL) continue;
+      lines++;
+      clearedMask |= 1 << r;
+      if (items.dot[r] || items.swap[r]) {
+        if (nItems === items) nItems = { dot: items.dot.slice(), swap: items.swap.slice() };
+        gotDot += popcount(items.dot[r]);
+        gotSwap += popcount(items.swap[r]);
+        nItems.dot[r] = 0;
+        nItems.swap[r] = 0;
+      }
+      nb[r] = 0;
+    }
+    return { board: nb, items: nItems, lines, clearedMask, gotDot, gotSwap };
+  }
+
+  function applyPlace(board, items, o, r, c) {
+    const nb = board.slice();
+    for (let i = 0; i < o.h; i++) nb[r + i] |= o.rows[i] << c;
+    return finishMove(nb, items, r, r + o.h - 1);
+  }
+
+  function applyDot(board, items, r, c) {
+    const nb = board.slice();
+    nb[r] |= 1 << c;
+    return finishMove(nb, items, r, r);
+  }
+
+  // 한도까지만 능력을 얻는다 (넘치면 못 얻는다는 가정, 미확인). 점 찍기를 먼저 채운다.
+  function gain(held, gotDot, gotSwap, cap) {
+    let room = Math.max(0, cap - held.dot - held.swap);
+    const d = Math.min(gotDot, room);
+    room -= d;
+    const s = Math.min(gotSwap, room);
+    return { held: { dot: held.dot + d, swap: held.swap + s }, d, s, count: d + s };
+  }
+
+  /* ---------- 평가 ---------- */
+
+  function boardFeatures(board) {
+    let dead = 0, gaps = 0, n8 = 0, n9 = 0, stack = 0, prevNear = false;
+    for (let r = 0; r < ROWS; r++) {
+      const row = board[r];
+      const empty = ~row & FULL;
+      if (empty) {
+        const up = r > 0 ? board[r - 1] : FULL;
+        const down = r < ROWS - 1 ? board[r + 1] : FULL;
+        const left = ((row << 1) | 1) & FULL;          // 열 c-1이 차 있거나 c = 0
+        const right = (row >> 1) | (1 << (COLS - 1));  // 열 c+1이 차 있거나 c = 9
+        const narrow = empty & left & right;
+        const deadBits = narrow & up & down;
+        dead += popcount(deadBits);
+        gaps += popcount(narrow & ~deadBits);
+      }
+      const cnt = popcount(row);
+      const near = cnt === COLS - 2 || cnt === COLS - 1;
+      if (cnt === COLS - 2) n8++;
+      else if (cnt === COLS - 1) n9++;
+      if (near && prevNear) stack++;
+      prevNear = near;
+    }
+    return { dead, gaps, n8, n9, stack };
+  }
+
+  function staticEval(f, w) {
+    return w.deadCell * f.dead + w.narrowGap * f.gaps + w.nearFull8 * f.n8 + w.nearFull9 * f.n9 + w.verticalStack * f.stack;
+  }
+
+  function canPlaceAny(board, piece) {
+    for (const o of piece.orients) {
+      for (let r = 0; r <= ROWS - o.h; r++) {
+        for (let c = 0; c <= COLS - o.w; c++) if (fits(board, o, r, c)) return true;
+      }
+    }
+    return false;
+  }
+
+  /* ---------- 탐색 ---------- */
+
+  function makeCtx(input) {
+    const hand = [0, 1, 2].map(i => {
+      const p = input.hand && input.hand[i];
+      return p && Array.isArray(p.cells) && p.cells.length ? makePiece(p) : null;
+    });
+    const byKey = new Map();
+    for (const d of input.dict || []) {
+      if (!d || !Array.isArray(d.cells) || !d.cells.length) continue;
+      const p = makePiece(d);
+      if (byKey.has(p.key)) continue;
+      p.p = d.p > 0 ? d.p : 1;
+      byKey.set(p.key, p);
+    }
+    return {
+      rules: input.rules,
+      w: input.weights,
+      solver: input.solver || {},
+      hand,
+      dict: [...byKey.values()],
+      cap: input.rules.abilityCap,
+      untilNext: (input.abilities && input.abilities.untilNext) || 0,
+    };
+  }
+
+  function rootNode(ctx, input) {
+    let used = 0;
+    ctx.hand.forEach((p, i) => { if (!p) used |= 1 << i; });
+    const node = {
+      board: input.board.slice(),
+      items: { dot: input.items.dot.slice(), swap: input.items.swap.slice() },
+      used,
+      held: { dot: input.abilities.dot | 0, swap: input.abilities.swap | 0 },
+      gained: 0, icons: 0, lines: 0, actions: [], score: 0,
+    };
+    node.score = staticEval(boardFeatures(node.board), ctx.w);
+    return node;
+  }
+
+  function makeChild(ctx, node, res, action, placed) {
+    const g = gain(node.held, res.gotDot, res.gotSwap, ctx.cap);
+    const pts = placed * ctx.rules.placeScorePerCell + lineScore(ctx.rules, res.lines) + g.count * ctx.rules.abilityScore;
+    const ch = {
+      board: res.board, items: res.items, used: node.used, held: g.held,
+      gained: node.gained + pts, icons: node.icons + g.count, lines: node.lines + res.lines,
+      actions: node.actions.concat([action]), score: 0,
+    };
+    ch.score = ctx.w.score * ch.gained + ctx.w.abilityGain * ch.icons + staticEval(boardFeatures(ch.board), ctx.w);
+    return ch;
+  }
+
+  // 남은 손패를 한 턴 안에서 모두 놓는 순서·방향·위치를 빔 탐색으로 찾는다.
+  function searchTurn(ctx, start, B) {
+    const hand = ctx.hand;
+    let frontier = [start];
+    const leaves = [];
+    let nodes = 0, pruned = false;
+    while (frontier.length) {
+      const children = [];
+      const index = new Map();   // 놓은 뒤 판 해시 → children 위치 (순서만 다른 같은 결과는 점수가 높은 쪽만)
+      for (const node of frontier) {
+        const before = children.length;
+        const tried = new Set();
+        const board = node.board;
+        for (let i = 0; i < hand.length; i++) {
+          const bit = 1 << i;
+          if (node.used & bit) continue;
+          const p = hand[i];
+          if (tried.has(p.key)) continue;
+          tried.add(p.key);
+          const used = node.used | bit;
+          for (let oi = 0; oi < p.orients.length; oi++) {
+            const o = p.orients[oi];
+            for (let r = 0; r <= ROWS - o.h; r++) {
+              for (let c = 0; c <= COLS - o.w; c++) {
+                if (!fits(board, o, r, c)) continue;
+                let h1 = used | 0, h2 = Math.imul(used + 1, 2654435761);
+                for (let k = 0; k < ROWS; k++) {
+                  let v = k >= r && k < r + o.h ? board[k] | (o.rows[k - r] << c) : board[k];
+                  if (v === FULL) v = 0;
+                  h1 = Math.imul(h1 ^ v, 0x01000193);
+                  h2 = (Math.imul(h2, 31) + v) | 0;
+                }
+                const key = (h1 >>> 0) * 0x200000 + ((h2 >>> 0) & 0x1FFFFF);
+                const at = index.get(key);
+                const ch = makeChild(ctx, node, applyPlace(board, node.items, o, r, c), { type: 'place', piece: i, orient: oi, r, c }, o.n);
+                ch.used = used;
+                if (at === undefined) {
+                  index.set(key, children.length);
+                  children.push(ch);
+                } else if (ch.score > children[at].score) {
+                  children[at] = ch;
+                }
+              }
+            }
+          }
+        }
+        nodes += children.length - before;
+        if (children.length === before) leaves.push(node);  // 다 놓았거나 더 놓을 곳이 없음
+      }
+      if (!children.length) break;
+      children.sort((a, b) => b.score - a.score);
+      if (children.length > B) pruned = true;
+      frontier = pruned ? children.slice(0, B) : children;
+    }
+    return { leaves, nodes, pruned };
+  }
+
+  function leafEval(ctx, node) {
+    const w = ctx.w;
+    const f = boardFeatures(node.board);
+    let remaining = 0;
+    ctx.hand.forEach((p, i) => { if (p && !(node.used & (1 << i))) remaining++; });
+    let unpl = 0;
+    for (const p of ctx.dict) if (!canPlaceAny(node.board, p)) unpl++;
+    const held = node.held.dot + node.held.swap;
+    let total = w.score * node.gained + w.abilityGain * node.icons + staticEval(f, w)
+      + w.abilityHeld * held + w.unplaceable * (unpl + remaining);
+    if (held === 0 && (unpl > 0 || remaining > 0)) total += w.stuckNoAbility;
+    return { total, f, unpl, remaining };
+  }
+
+  function rank(ctx, leaves) {
+    for (const lf of leaves) {
+      const e = leafEval(ctx, lf);
+      lf.total = e.total;
+      lf.eval = e;
+    }
+    return leaves.sort((a, b) => b.total - a.total);
+  }
+
+  function bestLeaf(ctx, start, B) {
+    return rank(ctx, searchTurn(ctx, start, B).leaves)[0];
+  }
+
+  /* ---------- 능력 판단 ---------- */
+
+  function analyzeDot(ctx, root, deadline, stuck) {
+    const start = { ...root, held: { dot: root.held.dot - 1, swap: root.held.swap } };
+    const cands = [];
+    for (let r = 0; r < ROWS; r++) {
+      const empty = ~root.board[r] & FULL;
+      if (!empty || (!stuck && popcount(empty) > 3)) continue;
+      for (let c = 0; c < COLS; c++) {
+        if (!((empty >> c) & 1)) continue;
+        const ch = makeChild(ctx, start, applyDot(root.board, root.items, r, c), { type: 'dot', r, c }, ctx.rules.dotCountsAsPlacement ? 1 : 0);
+        cands.push(ch);
+      }
+    }
+    cands.sort((a, b) => b.score - a.score);
+    let best = null;
+    for (const ch of cands.slice(0, stuck ? 40 : 12)) {
+      if (best && now() > deadline) break;
+      const lf = bestLeaf(ctx, ch, 6);
+      if (!best || lf.total > best.total) best = lf;
+    }
+    return best;
+  }
+
+  // 이 조각 하나만 놓을 때 얻는 최선 평가 (바꿔 뽑기 후보를 고를 때 씀)
+  function bestSingle(ctx, root, i) {
+    const p = ctx.hand[i];
+    let best = -Infinity;
+    for (let oi = 0; oi < p.orients.length; oi++) {
+      const o = p.orients[oi];
+      for (let r = 0; r <= ROWS - o.h; r++) {
+        for (let c = 0; c <= COLS - o.w; c++) {
+          if (!fits(root.board, o, r, c)) continue;
+          const ch = makeChild(ctx, root, applyPlace(root.board, root.items, o, r, c), null, o.n);
+          if (ch.score > best) best = ch.score;
+        }
+      }
+    }
+    return best;
+  }
+
+  function analyzeSwap(ctx, root, deadline, stuck) {
+    const idx = [];
+    ctx.hand.forEach((p, i) => { if (p && !(root.used & (1 << i))) idx.push(i); });
+    if (!idx.length) return null;
+    const singles = idx.map(i => ({ i, s: bestSingle(ctx, root, i) })).sort((a, b) => a.s - b.s);
+    const minDict = ctx.solver.swapMinDict || 4;
+    if (ctx.dict.length < minDict) {
+      const info = `바꿔 뽑기: 조각 사전이 ${ctx.dict.length}종이라 정보 부족 (최소 ${minDict}종)`;
+      if (stuck && singles[0].s === -Infinity) return { piece: singles[0].i, avg: -1e9, forced: true, info };
+      return { info };
+    }
+    const start = { ...root, held: { dot: root.held.dot, swap: root.held.swap - 1 } };
+    let best = null;
+    for (const { i } of singles.slice(0, stuck ? 2 : 1)) {
+      let sum = 0, wsum = 0, done = true;
+      for (const d of ctx.dict) {
+        if (now() > deadline && !stuck) { done = false; break; }
+        const hand = ctx.hand.slice();
+        hand[i] = d;
+        const lf = bestLeaf({ ...ctx, hand }, start, 4);
+        sum += d.p * lf.total;
+        wsum += d.p;
+      }
+      if (!done || !wsum) continue;
+      const avg = sum / wsum;
+      if (!best || avg > best.avg) best = { piece: i, avg };
+    }
+    return best;
+  }
+
+  /* ---------- 결과 정리 ---------- */
+
+  function replay(ctx, root, actions) {
+    let board = root.board, items = root.items, held = { ...root.held };
+    const steps = [];
+    for (const a of actions) {
+      if (a.type === 'swap') {
+        held = { dot: held.dot, swap: held.swap - 1 };
+        steps.push({ action: a, cells: [], lines: 0, clearedRows: [], points: 0, lineScore: 0, gotDot: 0, gotSwap: 0, board, items, held });
+        continue;
+      }
+      let res, cells, placed;
+      if (a.type === 'place') {
+        const o = ctx.hand[a.piece].orients[a.orient];
+        cells = o.cells.map(([r, c]) => [r + a.r, c + a.c]);
+        res = applyPlace(board, items, o, a.r, a.c);
+        placed = o.n;
+      } else {
+        cells = [[a.r, a.c]];
+        res = applyDot(board, items, a.r, a.c);
+        placed = ctx.rules.dotCountsAsPlacement ? 1 : 0;
+        held = { dot: held.dot - 1, swap: held.swap };
+      }
+      const g = gain(held, res.gotDot, res.gotSwap, ctx.cap);
+      held = g.held;
+      const ls = lineScore(ctx.rules, res.lines);
+      const clearedRows = [];
+      for (let r = 0; r < ROWS; r++) if ((res.clearedMask >> r) & 1) clearedRows.push(r);
+      steps.push({
+        action: a, cells, lines: res.lines, clearedRows, lineScore: ls,
+        points: placed * ctx.rules.placeScorePerCell + ls + g.count * ctx.rules.abilityScore,
+        gotDot: g.d, gotSwap: g.s, board: res.board, items: res.items, held,
+      });
+      board = res.board;
+      items = res.items;
+    }
+    return steps;
+  }
+
+  const fmt = n => Math.round(n).toLocaleString('ko-KR');
+  const signed = n => (n >= 0 ? '+' : '−') + fmt(Math.abs(n));
+  const pieceName = p => p.name || `${p.n}칸 조각`;
+
+  function reasons(ctx, root, cd, steps) {
+    const out = [];
+    if (cd.kind === 'swap') {
+      const p = ctx.hand[cd.piece];
+      if (cd.forced) out.push(`${pieceName(p)}: 놓을 자리가 없어 다시 뽑기를 권합니다. 사전이 작아 기대값은 계산하지 않았습니다.`);
+      else if (cd.stuck) out.push(`${pieceName(p)}: 놓을 자리가 없어 다시 뽑기를 권합니다. 새 조각도 놓기 어려울 수 있습니다 (기대 평가 ${signed(cd.gain)}).`);
+      else out.push(`${pieceName(p)}: 다시 뽑으면 기대 평가 ${signed(cd.gain)} (사전 ${ctx.dict.length}종의 등장 확률 기준)`);
+      return out;
+    }
+    if (cd.kind === 'dot') out.push(isFinite(cd.gain) && cd.gain > -1e8 ? `점 찍기를 쓰면 안 쓸 때보다 평가 +${fmt(cd.gain)}` : '놓을 자리가 없어 점 찍기로 자리를 만듭니다.');
+    steps.forEach((st, i) => {
+      if (st.lines) out.push(`${i + 1}번째 수: ${st.lines}줄 동시 삭제 +${fmt(st.lineScore)}점`);
+      const got = [st.gotDot ? `점 찍기 ${st.gotDot}` : '', st.gotSwap ? `바꿔 뽑기 ${st.gotSwap}` : ''].filter(Boolean);
+      if (got.length) out.push(`${i + 1}번째 수: 능력 획득 (${got.join(', ')})`);
+    });
+    const last = steps[steps.length - 1];
+    const f0 = boardFeatures(root.board), f1 = boardFeatures(last ? last.board : root.board);
+    if (f1.dead < f0.dead) out.push(`죽은 칸 ${f0.dead}개 → ${f1.dead}개`);
+    else if (f1.dead > f0.dead) out.push(`죽은 칸 ${f1.dead - f0.dead}개가 생기지만 다른 수보다 낫다고 판단`);
+    const near = f1.n8 + f1.n9;
+    if (near) out.push(`8~9칸 찬 줄 ${near}개로 다음 삭제 준비${f1.stack ? ' (위아래로 이어져 여러 줄 동시 삭제를 노림)' : ''}`);
+    const ev = cd.node && cd.node.eval;
+    if (ev && ev.remaining) out.push(`손패 ${ev.remaining}개는 이번 턴에 놓을 자리가 없음`);
+    if (ev && ev.unpl) out.push(`사전 조각 중 ${ev.unpl}종은 이 판에 놓을 자리가 없음`);
+    if (!out.length) out.push('줄을 지우지 못하는 턴이라 판 모양(빈 틈, 막힌 칸)이 가장 좋아지는 자리를 골랐습니다.');
+    return out;
+  }
+
+  function pack(ctx, root, cands, stats, notes, done) {
+    const results = [];
+    const firsts = new Set();
+    for (const cd of cands) {
+      if (results.length >= 3) break;
+      const actions = cd.kind === 'swap' ? [{ type: 'swap', piece: cd.piece }] : cd.node.actions;
+      if (!actions.length) continue;
+      const steps = replay(ctx, root, actions);
+      // 대안은 첫 수가 실제로 달라야 한다. 같은 조각·방향으로 같은 줄을 지우는 수는 위치만 다른 같은 수로 본다.
+      const a0 = actions[0], s0 = steps[0];
+      const fk = a0.type !== 'place' ? JSON.stringify(a0)
+        : s0.lines ? `p${a0.piece}:${a0.orient}:x${s0.clearedRows.join(',')}` : `p${a0.piece}:${a0.orient}:${a0.r},${a0.c}`;
+      if (firsts.has(fk)) continue;
+      firsts.add(fk);
+      results.push({
+        kind: cd.kind, actions, score: cd.total, gain: cd.gain,
+        points: steps.reduce((a, s) => a + s.points, 0),
+        steps: steps.map(({ board, items, ...rest }) => rest),
+        reasons: reasons(ctx, root, cd, steps),
+      });
+    }
+    return { results, stats: { ...stats }, notes: notes.slice(), done };
+  }
+
+  // 입력: { board, items, hand, abilities, clearedLines, rules, weights, solver, dict }
+  function solve(input, onProgress) {
+    const t0 = now();
+    const ctx = makeCtx(input);
+    const root = rootNode(ctx, input);
+    const s = ctx.solver;
+    const budget = Math.max(20, s.budgetMs || 700);
+    const stats = { beam: 0, nodes: 0, ms: 0, iterations: 0 };
+    const notes = [];
+    if (!ctx.hand.some(Boolean)) return { results: [], stats, notes: ['손패가 비어 있습니다.'], done: true };
+
+    const heldAny = root.held.dot + root.held.swap > 0;
+    const placeEnd = t0 + budget * (heldAny ? 0.6 : 0.95);
+    let B = Math.max(1, s.beamWidth | 0);
+    let leaves = [];
+    for (;;) {
+      const t = now();
+      const r = searchTurn(ctx, root, B);
+      stats.nodes += r.nodes;
+      stats.beam = B;
+      stats.iterations++;
+      leaves = rank(ctx, r.leaves);
+      const dt = now() - t;
+      stats.ms = now() - t0;
+      if (onProgress) onProgress(pack(ctx, root, leaves.map(lf => ({ kind: 'place', node: lf, total: lf.total })), stats, notes, false));
+      // 빔이 잘리지 않았으면(후보가 빔보다 적으면) 더 넓혀도 결과가 같다
+      if (!r.pruned || now() + dt * 2.3 > placeEnd || B >= 4096) break;
+      B *= 2;
+    }
+
+    const base = leaves[0];
+    const stuck = base.actions.length === 0;
+    const cands = leaves.map(lf => ({ kind: 'place', node: lf, total: lf.total }));
+    const heldTotal = root.held.dot + root.held.swap;
+    // 한도에 가깝고 곧 아이콘 칸이 생기면 능력을 쓰는 문턱을 낮춘다
+    const relax = heldTotal >= ctx.cap - 1 && ctx.untilNext > 0 && ctx.untilNext <= 2 ? 0.5 : 1;
+    if (root.held.dot > 0) {
+      const d = analyzeDot(ctx, root, t0 + budget * 0.8, stuck);
+      if (d && d.actions.length) {
+        const g = stuck ? Infinity : d.total - base.total;
+        if (stuck || g >= s.thetaDot * relax) cands.push({ kind: 'dot', node: d, total: d.total, gain: stuck ? NaN : g });
+      }
+    }
+    if (root.held.swap > 0) {
+      const sw = analyzeSwap(ctx, root, t0 + budget * 0.97, stuck);
+      if (sw && sw.info && !sw.forced) notes.push(sw.info);
+      if (sw && sw.piece !== undefined) {
+        const g = sw.avg - base.total;
+        if (sw.forced || stuck || g >= s.thetaSwap * relax) cands.push({ kind: 'swap', piece: sw.piece, total: sw.avg, gain: g, forced: sw.forced, stuck });
+      }
+    }
+    if (stuck) {
+      notes.push(heldTotal ? '지금 손패로는 놓을 자리가 없어 능력 사용을 먼저 검토했습니다.' : '놓을 수 있는 조각도, 남은 능력도 없습니다. 게임 오버 상태입니다.');
+    }
+    cands.sort((a, b) => b.total - a.total);
+    stats.ms = now() - t0;
+    return pack(ctx, root, cands, stats, notes, true);
+  }
+
+  /* ---------- 시뮬레이터 ---------- */
+
+  function mulberry32(a) {
+    return () => {
+      a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function stageOf(rules, cleared) {
+    let s = 0;
+    for (const t of rules.stageThresholds) if (cleared >= t) s++;
+    return Math.max(1, s);
+  }
+
+  // cfg: { rules, solver, dict: [{cells, name, seen}], maxTurns, iconEvery, beam }
+  function simulateGame(cfg, weights, seed) {
+    const rng = mulberry32(seed);
+    const rules = cfg.rules;
+    const pieces = cfg.dict.map(d => ({ piece: makePiece(d), seen: d.seen || {} }));
+    const draw = cleared => {
+      const st = stageOf(rules, cleared);
+      const ws = pieces.map(x => (x.seen[st] || 0) + 1);
+      let t = rng() * ws.reduce((a, b) => a + b, 0);
+      for (let i = 0; i < pieces.length; i++) { t -= ws[i]; if (t <= 0) return pieces[i].piece; }
+      return pieces[pieces.length - 1].piece;
+    };
+    let board = new Array(ROWS).fill(0);
+    let items = { dot: new Array(ROWS).fill(0), swap: new Array(ROWS).fill(0) };
+    let held = { dot: 0, swap: 0 };
+    let untilNext = cfg.iconEvery, cleared = 0, score = 0, turns = 0;
+    const spawnIcon = () => {
+      for (let tries = 0; tries < 50; tries++) {
+        const r = Math.floor(rng() * ROWS), c = Math.floor(rng() * COLS);
+        if (((items.dot[r] | items.swap[r]) >> c) & 1) continue;
+        items = { dot: items.dot.slice(), swap: items.swap.slice() };
+        (rng() < rules.abilityOdds.dot ? items.dot : items.swap)[r] |= 1 << c;
+        return;
+      }
+    };
+    const afterMove = (res, placed) => {
+      const g = gain(held, res.gotDot, res.gotSwap, rules.abilityCap);
+      held = g.held;
+      score += placed * rules.placeScorePerCell + lineScore(rules, res.lines) + g.count * rules.abilityScore;
+      cleared += res.lines;
+      board = res.board;
+      items = res.items;
+      if (--untilNext <= 0) { spawnIcon(); untilNext = cfg.iconEvery; }
+    };
+    while (turns < cfg.maxTurns) {
+      turns++;
+      const hand = [draw(cleared), draw(cleared), draw(cleared)];
+      for (let guard = 0; guard < 12 && hand.some(Boolean); guard++) {
+        const input = {
+          board, items, hand, abilities: { dot: held.dot, swap: held.swap, untilNext },
+          rules, weights, solver: cfg.solver, dict: cfg.dict,
+        };
+        const ctx = makeCtx(input);
+        const root = rootNode(ctx, input);
+        const best = bestLeaf(ctx, root, cfg.beam);
+        if (best.actions.length) {
+          for (const a of best.actions) {
+            const o = ctx.hand[a.piece].orients[a.orient];
+            afterMove(applyPlace(board, items, o, a.r, a.c), o.n);
+            hand[a.piece] = null;
+          }
+          continue;
+        }
+        if (held.dot > 0) {
+          const d = analyzeDot(ctx, root, now() + 30, true);
+          if (d && d.actions.length) {
+            const a = d.actions[0];
+            held = { dot: held.dot - 1, swap: held.swap };
+            afterMove(applyDot(board, items, a.r, a.c), rules.dotCountsAsPlacement ? 1 : 0);
+            continue;
+          }
+        }
+        if (held.swap > 0) {
+          const i = hand.findIndex(p => p && !canPlaceAny(board, p));
+          held = { dot: held.dot, swap: held.swap - 1 };
+          hand[i] = draw(cleared);
+          continue;
+        }
+        return { score, turns, cleared, over: true };
+      }
+    }
+    return { score, turns, cleared, over: false };
+  }
+
+  function simulateSet(cfg, weights, onGame) {
+    const agg = { score: 0, turns: 0, cleared: 0, over: 0, games: cfg.games, scores: [] };
+    for (let g = 0; g < cfg.games; g++) {
+      const r = simulateGame(cfg, weights, cfg.seed * 1000 + g);
+      agg.score += r.score;
+      agg.turns += r.turns;
+      agg.cleared += r.cleared;
+      agg.over += r.over ? 1 : 0;
+      agg.scores.push(r.score);
+      if (onGame) onGame(g + 1);
+    }
+    for (const k of ['score', 'turns', 'cleared']) agg[k] /= cfg.games;
+    agg.over /= cfg.games;
+    return agg;
+  }
+
+  // 가중치를 하나씩 ×1.3, ×0.7로 바꿔 보고 평균 점수가 오르면 받아들인다 (좌표 하강 한 바퀴)
+  function autotune(cfg, weights, onStep) {
+    let best = { ...weights };
+    let bestAgg = simulateSet(cfg, best);
+    const history = [{ key: '시작', value: null, avg: bestAgg.score, accepted: true }];
+    if (onStep) onStep(history[0], best);
+    for (const key of Object.keys(best)) {
+      if (key === 'score') continue;
+      for (const f of [1.3, 0.7]) {
+        const trial = { ...best, [key]: Math.round(best[key] * f) };
+        if (trial[key] === best[key]) continue;
+        const agg = simulateSet(cfg, trial);
+        const accepted = agg.score > bestAgg.score;
+        const h = { key, value: trial[key], avg: agg.score, accepted };
+        history.push(h);
+        if (accepted) { best = trial; bestAgg = agg; }
+        if (onStep) onStep(h, best);
+        if (accepted) break;
+      }
+    }
+    return { weights: best, agg: bestAgg, history };
+  }
+
+  return {
+    ROWS, COLS, FULL, popcount, normalize, cellsKey, transform, orientations, canonicalKey, makePiece,
+    lineScore, fits, applyPlace, applyDot, finishMove, boardFeatures, staticEval, canPlaceAny,
+    makeCtx, rootNode, searchTurn, rank, replay, solve, simulateGame, simulateSet, autotune,
+  };
+}
+
+// Worker 안에서 도는 메시지 처리부
+function workerMain(core) {
+  self.onmessage = e => {
+    const m = e.data;
+    if (m.type === 'solve') {
+      const out = core.solve(m.input, partial => self.postMessage({ type: 'result', jobId: m.jobId, ...partial }));
+      self.postMessage({ type: 'result', jobId: m.jobId, ...out });
+    } else if (m.type === 'simulate') {
+      const sets = m.sets.map((s, si) => {
+        const agg = core.simulateSet(m.cfg, s.weights, g => self.postMessage({ type: 'progress', jobId: m.jobId, done: si * m.cfg.games + g, total: m.sets.length * m.cfg.games }));
+        return { label: s.label, ...agg };
+      });
+      self.postMessage({ type: 'simDone', jobId: m.jobId, sets });
+    } else if (m.type === 'autotune') {
+      const total = 1 + 2 * (Object.keys(m.weights).length - 1);
+      let step = 0;
+      const out = core.autotune(m.cfg, m.weights, (h, best) => self.postMessage({ type: 'tuneStep', jobId: m.jobId, h, best, done: ++step, total }));
+      self.postMessage({ type: 'tuneDone', jobId: m.jobId, ...out });
+    }
+  };
+}
+
+const core = coreFactory();
+
+/* ================================================================
+ * pieces — 칸 좌표 도우미 (방향 생성과 정규화는 코어에 있음)
+ * ================================================================ */
+const pieces = (() => {
+  const EDIT_SIZE = 6;
+
+  const getBit = (rows, r, c) => (rows[r] >> c) & 1;
+  function setBit(rows, r, c, on) {
+    if (on) rows[r] |= 1 << c;
+    else rows[r] &= ~(1 << c);
   }
 
   function bbox(cells) {
@@ -495,21 +1264,93 @@ const pieces = (() => {
     return seen.size === all.size;
   }
 
-  return { EDIT_SIZE, popcount, getBit, setBit, normalizeCells, bbox, isConnected };
+  return { EDIT_SIZE, getBit, setBit, bbox, isConnected, normalize: core.normalize, popcount: core.popcount };
 })();
 
 /* ================================================================
- * ui — 렌더링, 데모 입력, 설정 서랍
+ * solver — Worker 클라이언트. Worker를 못 쓰면 메인 스레드에서 계산한다.
+ * ================================================================ */
+const solver = (() => {
+  let url = null;
+  function workerUrl() {
+    url ??= URL.createObjectURL(new Blob(
+      [`'use strict';\nconst coreFactory = ${coreFactory};\n(${workerMain})(coreFactory());`],
+      { type: 'text/javascript' },
+    ));
+    return url;
+  }
+  function spawn(onmessage) {
+    try {
+      const w = new Worker(workerUrl());
+      w.onmessage = onmessage;
+      return w;
+    } catch { return null; }
+  }
+
+  let worker = null, busy = false, jobId = 0, handler = null;
+
+  function onMessage(e) {
+    const m = e.data;
+    if (m.jobId !== jobId) return;
+    if (m.done) busy = false;
+    handler?.(m);
+  }
+
+  function runInline(id, input) {
+    setTimeout(() => {
+      if (id !== jobId) return;
+      const out = core.solve(input);
+      busy = false;
+      handler?.({ jobId: id, ...out });
+    }, 0);
+  }
+
+  // 새 상태가 들어오면 작업 번호를 올리고, 계산 중인 Worker는 버리고 새로 띄운다.
+  function solve(input, onResult) {
+    const id = ++jobId;
+    handler = onResult;
+    if (busy && worker) { worker.terminate(); worker = null; }
+    busy = true;
+    worker ??= spawn(onMessage);
+    if (!worker) { runInline(id, input); return id; }
+    worker.onerror = () => { worker = null; runInline(id, input); };
+    worker.postMessage({ type: 'solve', jobId: id, input });
+    return id;
+  }
+
+  // 시뮬레이터는 별도 Worker에서 돌리고, 중지는 terminate로 한다.
+  let simWorker = null, simId = 0;
+  function simulate(msg, onMessage) {
+    stopSim();
+    simWorker = spawn(e => { if (e.data.jobId === simId) onMessage(e.data); });
+    if (!simWorker) return false;
+    simWorker.onerror = ev => onMessage({ type: 'error', message: ev.message || 'Worker 오류' });
+    simWorker.postMessage({ ...msg, jobId: ++simId });
+    return true;
+  }
+  function stopSim() {
+    if (simWorker) { simWorker.terminate(); simWorker = null; }
+  }
+
+  return { solve, simulate, stopSim, get busy() { return busy; } };
+})();
+
+/* ================================================================
+ * ui — 렌더링, 데모 입력, 추천 표시, 설정 서랍
  * ================================================================ */
 const ui = (() => {
   const { RULES } = config;
   const ROWS = RULES.rows, COLS = RULES.cols, FULL = (1 << COLS) - 1;
   const $ = (sel, el = document) => el.querySelector(sel);
+  const fmt = n => Math.round(n).toLocaleString('ko-KR');
 
   let settings;
   let demo;
   let dict;
   let tool = 'fill';
+
+  // 추천 상태
+  const reco = { results: [], notes: [], stats: null, done: true, sel: 0, pending: false, error: null };
 
   // 빠르게 드래그하면 포인터 이벤트 사이에 칸이 빠지므로, 두 칸 사이를 직선으로 잇는 칸들을 돌려준다.
   function cellsBetween(a, b) {
@@ -549,6 +1390,12 @@ const ui = (() => {
     toastTimer = setTimeout(() => { el.hidden = true; }, 2600);
   }
 
+  function setStatus(text, tone = '') {
+    const el = $('#status');
+    el.textContent = text;
+    el.dataset.tone = tone;
+  }
+
   /* ---------- 데모 상태 ---------- */
 
   function emptyDemo() {
@@ -567,7 +1414,7 @@ const ui = (() => {
 
   function sanitizePiece(p) {
     if (!p || !Array.isArray(p.cells)) return null;
-    const cells = pieces.normalizeCells(
+    const cells = pieces.normalize(
       p.cells.filter(x => Array.isArray(x) && x.length === 2 && x.every(n => Number.isInteger(n) && n >= 0 && n < pieces.EDIT_SIZE)),
     );
     if (!cells.length) return null;
@@ -590,16 +1437,110 @@ const ui = (() => {
     return d;
   }
 
+  // 지금 화면에 보이는 게임 상태 (데모 모드에서는 손으로 넣은 상태)
+  const cur = () => demo;
+
   function demoChanged() {
     saveDemo();
     renderDemo();
+    requestSolve();
   }
 
   function renderDemo() {
     renderBoard();
+    renderHand();
     renderAbilities();
-    renderReco();
     renderDebug();
+  }
+
+  /* ---------- 조각 사전 ---------- */
+
+  function loadDict() {
+    const d = storage.load(storage.KEYS.dict);
+    if (!d || !Array.isArray(d.pieces)) return { version: 1, pieces: [] };
+    const list = [];
+    const keys = new Set();
+    for (const e of d.pieces) {
+      const p = sanitizePiece(e);
+      if (!p) continue;
+      const key = core.canonicalKey(p.cells);
+      if (keys.has(key)) continue;
+      keys.add(key);
+      list.push({ key, name: p.name || '', cells: p.cells, seen: e.seen && typeof e.seen === 'object' ? e.seen : {} });
+    }
+    return { version: 1, pieces: list };
+  }
+
+  const dictFind = cells => {
+    if (!cells?.length) return null;
+    const key = core.canonicalKey(pieces.normalize(cells));
+    return dict.pieces.find(e => e.key === key) ?? null;
+  };
+
+  function dictUpsert(cells, name) {
+    const n = pieces.normalize(cells);
+    const key = core.canonicalKey(n);
+    let e = dict.pieces.find(x => x.key === key);
+    if (!e) {
+      e = { key, name: name || '', cells: n, seen: {} };
+      dict.pieces.push(e);
+    } else if (name) {
+      e.name = name;
+    }
+    persist(storage.KEYS.dict, dict);
+    return e;
+  }
+
+  // 손패가 확정될 때마다 현재 단계의 등장 횟수를 기록한다 (4단계 인식에서 호출)
+  function dictRecord(hand, stage) {
+    for (const p of hand) {
+      const e = p && dictFind(p.cells);
+      if (e) e.seen[stage] = (e.seen[stage] || 0) + 1;
+    }
+    persist(storage.KEYS.dict, dict);
+  }
+
+  // 단계별 등장 확률(라플라스 보정). 기록이 없으면 균등.
+  function dictForSolver(stage) {
+    return dict.pieces.map(e => ({ cells: e.cells, name: e.name, p: (e.seen[stage] || 0) + 1, seen: e.seen }));
+  }
+
+  /* ---------- 솔버 호출 ---------- */
+
+  function solverInput(st) {
+    const stage = config.stageOf(settings.rules, st.clearedLines);
+    return {
+      board: st.board, items: st.items, hand: st.hand,
+      abilities: { ...st.abilities, cap: settings.rules.abilityCap },
+      clearedLines: st.clearedLines,
+      rules: settings.rules, weights: settings.weights, solver: settings.solver,
+      dict: dictForSolver(stage),
+    };
+  }
+
+  const requestSolve = debounce(() => solveNow(), 120);
+
+  function solveNow() {
+    const st = cur();
+    reco.pending = true;
+    reco.error = null;
+    setStatus('계산 중', 'busy');
+    renderReco();
+    solver.solve(solverInput(st), m => {
+      if (m.type === 'error') { reco.error = m.message; return; }
+      reco.results = m.results || [];
+      reco.notes = m.notes || [];
+      reco.stats = m.stats;
+      reco.done = !!m.done;
+      if (reco.sel >= reco.results.length) reco.sel = 0;
+      if (m.done) {
+        reco.pending = false;
+        setStatus(reco.results.length ? '추천 표시' : '데모 모드', reco.results.length ? 'ok' : '');
+      }
+      renderReco();
+      renderBoard();
+      renderHand();
+    });
   }
 
   /* ---------- 판 캔버스 ---------- */
@@ -612,6 +1553,7 @@ const ui = (() => {
     block: '#F27BA7', blockEdge: '#B94F78', gloss: 'rgba(255,255,255,.85)',
     dot: '#4A7DFF', swap: '#C47CF2', full: '#F3C969', hover: 'rgba(255,255,255,.75)',
     label: '#687084', count9: '#F3C969', count8: '#9FE3B5',
+    now: 'rgba(243,201,105,.62)', nowEdge: '#F3C969', next: 'rgba(255,255,255,.26)', nextEdge: 'rgba(255,255,255,.7)',
   };
 
   let canvas, ctx;
@@ -702,45 +1644,114 @@ const ui = (() => {
     ctx.fill();
   }
 
-  function drawDotIcon(x, y) {
-    const cx = x + G.cs / 2, cy = y + G.cs / 2;
-    ctx.lineWidth = 2;
+  function drawDotIcon(x, y, s = G.cs) {
+    const cx = x + s / 2, cy = y + s / 2, k = s / 30;
+    ctx.lineWidth = 2 * k;
     ctx.strokeStyle = COLORS.dot;
     for (const rad of [9, 5]) {
       ctx.beginPath();
-      ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+      ctx.arc(cx, cy, rad * k, 0, Math.PI * 2);
       ctx.stroke();
     }
     ctx.beginPath();
-    ctx.arc(cx, cy, 2, 0, Math.PI * 2);
+    ctx.arc(cx, cy, 2 * k, 0, Math.PI * 2);
     ctx.fillStyle = COLORS.dot;
     ctx.fill();
   }
 
-  function drawSwapIcon(x, y) {
-    const cx = x + G.cs / 2, cy = y + G.cs / 2;
+  function drawSwapIcon(x, y, s = G.cs) {
+    const cx = x + s / 2, cy = y + s / 2, k = s / 30;
     ctx.strokeStyle = COLORS.swap;
     ctx.fillStyle = COLORS.swap;
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 2.5 * k;
     ctx.lineCap = 'round';
     for (const [dy, dir] of [[-4, 1], [4, -1]]) {
-      const tip = cx + 8 * dir, tail = cx - 8 * dir;
+      const tip = cx + 8 * k * dir, tail = cx - 8 * k * dir;
       ctx.beginPath();
-      ctx.moveTo(tail, cy + dy);
-      ctx.lineTo(tip - 3 * dir, cy + dy);
+      ctx.moveTo(tail, cy + dy * k);
+      ctx.lineTo(tip - 3 * k * dir, cy + dy * k);
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(tip, cy + dy);
-      ctx.lineTo(tip - 5 * dir, cy + dy - 4);
-      ctx.lineTo(tip - 5 * dir, cy + dy + 4);
+      ctx.moveTo(tip, cy + dy * k);
+      ctx.lineTo(tip - 5 * k * dir, cy + (dy - 4) * k);
+      ctx.lineTo(tip - 5 * k * dir, cy + (dy + 4) * k);
       ctx.closePath();
       ctx.fill();
     }
     ctx.lineCap = 'butt';
   }
 
+  const CIRCLED = ['①', '②', '③', '④', '⑤', '⑥'];
+
+  // 추천 시퀀스를 판 위에 덧그린다. cellRect(r, c) → {x, y, s}로 좌표계를 받는다.
+  function drawRecoOverlay(g, cellRect, result) {
+    if (!result) return;
+    result.steps.forEach((st, i) => {
+      const nowStep = i === 0;
+      for (const [r, c] of st.cells) {
+        const { x, y, s } = cellRect(r, c);
+        g.beginPath();
+        g.roundRect(x + 2, y + 2, s - 4, s - 4, s * 0.16);
+        g.fillStyle = nowStep ? COLORS.now : COLORS.next;
+        g.fill();
+        g.lineWidth = nowStep ? 2.5 : 1.5;
+        g.strokeStyle = nowStep ? COLORS.nowEdge : COLORS.nextEdge;
+        g.stroke();
+      }
+      if (st.action.type === 'dot' && st.cells.length) {
+        const { x, y, s } = cellRect(...st.cells[0]);
+        g.beginPath();
+        g.arc(x + s / 2, y + s / 2, s * 0.18, 0, Math.PI * 2);
+        g.fillStyle = COLORS.dot;
+        g.fill();
+      }
+      if (st.cells.length) {
+        const [r0, c0] = st.cells.reduce((a, b) => (b[0] < a[0] || (b[0] === a[0] && b[1] < a[1]) ? b : a));
+        const { x, y, s } = cellRect(r0, c0);
+        g.font = `700 ${Math.round(s * 0.5)}px ${getComputedStyle(document.body).fontFamily}`;
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.lineWidth = 3;
+        g.strokeStyle = 'rgba(0,0,0,.65)';
+        g.strokeText(CIRCLED[i] ?? String(i + 1), x + s / 2, y + s / 2 + 1);
+        g.fillStyle = '#fff';
+        g.fillText(CIRCLED[i] ?? String(i + 1), x + s / 2, y + s / 2 + 1);
+      }
+      for (const r of st.clearedRows) {
+        const a = cellRect(r, 0), b = cellRect(r, COLS - 1);
+        g.lineWidth = 2.5;
+        g.strokeStyle = nowStep ? COLORS.full : COLORS.nextEdge;
+        g.setLineDash(nowStep ? [] : [5, 4]);
+        g.beginPath();
+        g.roundRect(a.x, a.y + 1, b.x + b.s - a.x, a.s - 2, 4);
+        g.stroke();
+        g.setLineDash([]);
+      }
+      if (st.lines) {
+        const r = st.clearedRows[0];
+        const a = cellRect(r, 0), b = cellRect(r, COLS - 1);
+        const gotText = [st.gotDot ? '+점 찍기' : '', st.gotSwap ? '+바꿔 뽑기' : ''].filter(Boolean).join(' ');
+        const label = `${CIRCLED[i] ?? i + 1} ${st.lines}줄 +${fmt(st.lineScore)}${gotText ? ' ' + gotText : ''}`;
+        g.font = `700 ${Math.round(a.s * 0.42)}px ${getComputedStyle(document.body).fontFamily}`;
+        const tw = g.measureText(label).width + 10;
+        const lx = (a.x + b.x + b.s) / 2 - tw / 2, ly = a.y - a.s * 0.62;
+        g.fillStyle = 'rgba(18,20,26,.88)';
+        g.beginPath();
+        g.roundRect(lx, Math.max(0, ly), tw, a.s * 0.58, 5);
+        g.fill();
+        g.fillStyle = nowStep ? COLORS.full : '#fff';
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.fillText(label, lx + tw / 2, Math.max(0, ly) + a.s * 0.3);
+      }
+    });
+  }
+
+  const selectedResult = () => reco.results[reco.sel] ?? null;
+
   function renderBoard() {
     const s = G.cs;
+    const st = demo;
     ctx.clearRect(0, 0, BW, BH);
 
     roundRect(G.left - 4, G.top - 4, COLS * s + 8, ROWS * s + 8, 8);
@@ -755,29 +1766,33 @@ const ui = (() => {
 
     for (let r = 0; r < ROWS; r++) {
       const y = G.top + r * s;
+      ctx.font = `11px ${getComputedStyle(document.body).getPropertyValue('--mono')}`;
+      ctx.textBaseline = 'middle';
       ctx.textAlign = 'right';
       ctx.fillStyle = COLORS.label;
       ctx.fillText(String(r + 1), G.left - 8, y + s / 2);
 
       for (let c = 0; c < COLS; c++) {
         const x = G.left + c * s;
-        if (pieces.getBit(demo.board, r, c)) drawBlock(x, y); else drawEmpty(x, y);
-        if (pieces.getBit(demo.items.dot, r, c)) drawDotIcon(x, y);
-        if (pieces.getBit(demo.items.swap, r, c)) drawSwapIcon(x, y);
+        if (pieces.getBit(st.board, r, c)) drawBlock(x, y); else drawEmpty(x, y);
+        if (pieces.getBit(st.items.dot, r, c)) drawDotIcon(x, y);
+        if (pieces.getBit(st.items.swap, r, c)) drawSwapIcon(x, y);
       }
 
-      const n = pieces.popcount(demo.board[r]);
+      const n = pieces.popcount(st.board[r]);
       ctx.textAlign = 'left';
       ctx.fillStyle = n === COLS ? COLORS.full : n === 9 ? COLORS.count9 : n === 8 ? COLORS.count8 : COLORS.label;
       ctx.fillText(n === COLS ? '꽉' : String(n), G.left + COLS * s + 10, y + s / 2);
 
-      if (demo.board[r] === FULL) {
+      if (st.board[r] === FULL) {
         ctx.strokeStyle = COLORS.full;
         ctx.lineWidth = 2;
         roundRect(G.left - 1, y + 1, COLS * s + 2, s - 2, 5);
         ctx.stroke();
       }
     }
+
+    drawRecoOverlay(ctx, (r, c) => ({ x: G.left + c * s, y: G.top + r * s, s }), selectedResult());
 
     if (hover) {
       ctx.strokeStyle = COLORS.hover;
@@ -786,13 +1801,13 @@ const ui = (() => {
       ctx.stroke();
     }
 
-    const filled = demo.board.reduce((a, row) => a + pieces.popcount(row), 0);
-    const fullRows = demo.board.filter(row => row === FULL).length;
+    const filled = st.board.reduce((a, row) => a + pieces.popcount(row), 0);
+    const fullRows = st.board.filter(row => row === FULL).length;
     const note = $('#boardNote');
     note.classList.toggle('warn', fullRows > 0);
     note.textContent = fullRows
       ? `가득 찬 줄이 ${fullRows}개 있습니다. 실제 게임에서는 바로 지워지는 상태입니다.`
-      : `채운 칸 ${filled} / ${ROWS * COLS} · 칸을 누르거나 드래그해서 바꿉니다.`;
+      : `채운 칸 ${filled} / ${ROWS * COLS} · 칸을 누르거나 드래그해서 바꿉니다. 추천 위치는 조각의 왼쪽 위 칸 기준입니다.`;
   }
 
   function renderTools() {
@@ -803,7 +1818,7 @@ const ui = (() => {
 
   /* ---------- 손패 ---------- */
 
-  function miniGrid(cells) {
+  function miniGrid(cells, cls = '') {
     const box = document.createElement('div');
     box.className = 'mini-box';
     if (!cells) {
@@ -813,8 +1828,8 @@ const ui = (() => {
     const { h, w } = pieces.bbox(cells);
     const on = new Set(cells.map(([r, c]) => r * 64 + c));
     const grid = document.createElement('div');
-    grid.className = 'mini';
-    grid.style.gridTemplateColumns = `repeat(${w}, 10px)`;
+    grid.className = 'mini' + (cls ? ' ' + cls : '');
+    grid.style.gridTemplateColumns = `repeat(${w}, auto)`;
     for (let r = 0; r < h; r++) {
       for (let c = 0; c < w; c++) {
         const sp = document.createElement('span');
@@ -826,9 +1841,14 @@ const ui = (() => {
     return box;
   }
 
+  const pieceLabel = p => p.name || dictFind(p.cells)?.name || `${p.cells.length}칸 조각`;
+
   function renderHand() {
-    const wrap = $('#hand');
-    wrap.replaceChildren(...demo.hand.map((p, i) => {
+    const st = cur();
+    const res = selectedResult();
+    const first = res?.actions[0];
+    const seqOf = i => res ? res.actions.findIndex(a => a.type === 'place' && a.piece === i) : -1;
+    $('#hand').replaceChildren(...st.hand.map((p, i) => {
       const card = document.createElement('button');
       card.type = 'button';
       card.className = 'hand-card';
@@ -840,12 +1860,26 @@ const ui = (() => {
       meta.className = 'hc-meta';
       if (p) {
         const b = document.createElement('b');
-        b.textContent = p.name || '이름 없음';
+        b.textContent = pieceLabel(p);
         meta.append(b, ` · ${p.cells.length}칸`);
       } else {
         meta.textContent = '눌러서 입력';
       }
       card.append(idx, miniGrid(p?.cells), meta);
+      const k = seqOf(i);
+      if (first?.type === 'swap' && first.piece === i) {
+        card.classList.add('swap');
+        const badge = document.createElement('span');
+        badge.className = 'hc-badge';
+        badge.textContent = '바꿔 뽑기';
+        card.append(badge);
+      } else if (k >= 0) {
+        if (k === 0) card.classList.add('now');
+        const badge = document.createElement('span');
+        badge.className = 'hc-badge';
+        badge.textContent = CIRCLED[k];
+        card.append(badge);
+      }
       card.addEventListener('click', () => openEditor(i));
       return card;
     }));
@@ -903,9 +1937,15 @@ const ui = (() => {
     // close 이벤트는 비동기라 화면이 그려지지 않는 동안 늦게 올 수 있어, 제출 시점에 바로 반영한다.
     $('#pieceDialog form').addEventListener('submit', e => {
       if (e.submitter?.value !== 'save') return;
-      const cells = pieces.normalizeCells([...editor.on].map(k => [Math.floor(k / 64), k % 64]));
-      demo.hand[editor.idx] = sanitizePiece({ cells, name: $('#pdName').value });
-      renderHand();
+      const cells = pieces.normalize([...editor.on].map(k => [Math.floor(k / 64), k % 64]));
+      let name = $('#pdName').value.trim();
+      if (!name) name = dictFind(cells)?.name ?? '';
+      const piece = sanitizePiece({ cells, name });
+      if (piece && $('#pdDict').checked && pieces.isConnected(piece.cells)) {
+        dictUpsert(piece.cells, piece.name);
+        renderDict();
+      }
+      cur().hand[editor.idx] = piece;
       demoChanged();
     });
   }
@@ -917,7 +1957,7 @@ const ui = (() => {
 
   function openEditor(i) {
     editor.idx = i;
-    const p = demo.hand[i];
+    const p = cur().hand[i];
     editor.on = new Set((p?.cells ?? []).map(([r, c]) => r * 64 + c));
     $('#pdTitle').textContent = `손패 ${i + 1}번 편집`;
     $('#pdName').value = p?.name ?? '';
@@ -935,11 +1975,13 @@ const ui = (() => {
     const info = $('#pdInfo');
     const connected = pieces.isConnected(cells);
     info.classList.toggle('warn', !connected);
+    const match = connected ? dictFind(cells) : null;
+    $('#pdName').placeholder = match?.name ? `사전: ${match.name}` : '선택 · 예) ㅏ';
     if (!cells.length) info.textContent = '칸을 눌러 모양을 그립니다. 비워 두고 저장하면 손패가 빕니다.';
     else if (!connected) info.textContent = `${cells.length}칸 · 떨어진 칸이 있습니다. 조각은 한 덩어리여야 합니다.`;
     else {
-      const { h, w } = pieces.bbox(pieces.normalizeCells(cells));
-      info.textContent = `${cells.length}칸 · 가로 ${w} × 세로 ${h}`;
+      const { h, w } = pieces.bbox(pieces.normalize(cells));
+      info.textContent = `${cells.length}칸 · 가로 ${w} × 세로 ${h}` + (match ? ` · 사전의 '${match.name || '이름 없음'}'과 같은 모양` : '');
     }
   }
 
@@ -951,9 +1993,9 @@ const ui = (() => {
     { key: 'untilNext',    label: '다음 능력까지', max: 99 },
     { key: 'clearedLines', label: '제거한 줄 수',  max: 9999 },
   ];
-  const stepGet = key => key === 'clearedLines' ? demo.clearedLines : demo.abilities[key];
+  const stepGet = key => key === 'clearedLines' ? cur().clearedLines : cur().abilities[key];
   function stepSet(key, v) {
-    if (key === 'clearedLines') demo.clearedLines = v; else demo.abilities[key] = v;
+    if (key === 'clearedLines') cur().clearedLines = v; else cur().abilities[key] = v;
   }
 
   function setupAbilities() {
@@ -986,8 +2028,9 @@ const ui = (() => {
       if (document.activeElement !== input) input.value = String(stepGet(s.key));
     }
     const r = settings.rules;
-    const held = demo.abilities.dot + demo.abilities.swap;
-    const stage = config.stageOf(r, demo.clearedLines);
+    const st = cur();
+    const held = st.abilities.dot + st.abilities.swap;
+    const stage = config.stageOf(r, st.clearedLines);
     const sum = $('#abSummary');
     sum.innerHTML = '';
     const heldEl = document.createElement('span');
@@ -996,27 +2039,178 @@ const ui = (() => {
     sum.append(heldEl, ` · ${stage}단계 (${config.stageRange(r, stage)})`);
   }
 
-  /* ---------- 추천 (2단계에서 솔버 연결) ---------- */
+  /* ---------- 추천 패널 ---------- */
+
+  function orientOf(p, oi) {
+    return core.makePiece(p).orients[oi];
+  }
+
+  // 예: '손패 2번 ㅂ — 좌우 반전 후 시계 방향 90° 1번 → 위에서 12행·왼쪽에서 3열'
+  function actionText(a, st) {
+    if (a.type === 'dot') return `점 찍기 → 위에서 ${a.r + 1}행·왼쪽에서 ${a.c + 1}열`;
+    const p = st.hand[a.piece];
+    if (a.type === 'swap') return `바꿔 뽑기 → 손패 ${a.piece + 1}번 ${pieceLabel(p)} 다시 뽑기`;
+    const o = orientOf(p, a.orient);
+    const ops = [];
+    if (o.flip) ops.push('좌우 반전');
+    if (o.rot) ops.push(`시계 방향 90° ${o.rot}번`);
+    return `손패 ${a.piece + 1}번 ${pieceLabel(p)} — ${ops.length ? ops.join(' 후 ') : '그대로'} → 위에서 ${a.r + 1}행·왼쪽에서 ${a.c + 1}열`;
+  }
 
   function renderReco() {
-    const handCount = demo.hand.filter(Boolean).length;
-    $('#reco').innerHTML = `
-      <p>솔버는 2단계에서 연결됩니다.</p>
-      <p>지금 입력된 손패 ${handCount} / ${RULES.handSize}개</p>`;
+    const box = $('#reco');
+    box.replaceChildren();
+    const st = cur();
+    const res = selectedResult();
+    if (!res) {
+      const empty = document.createElement('div');
+      empty.className = 'reco-empty';
+      const handCount = st.hand.filter(Boolean).length;
+      const lines = reco.pending ? ['계산 중…'] : handCount ? ['추천할 수가 없습니다.'] : ['손패를 입력하면 추천을 계산합니다.'];
+      for (const n of reco.notes) lines.push(n);
+      empty.innerHTML = lines.map(l => `<p>${escapeHtml(l)}</p>`).join('');
+      box.append(empty);
+      return;
+    }
+
+    const first = res.actions[0];
+    const card = document.createElement('div');
+    card.className = `reco-card kind-${res.kind}`;
+    const top = document.createElement('div');
+    top.className = 'reco-top';
+    const shape = document.createElement('div');
+    shape.className = 'reco-shape';
+    if (first.type === 'place') shape.append(miniGrid(orientOf(st.hand[first.piece], first.orient).cells, 'gold'));
+    else shape.innerHTML = `<i class="sw ${first.type === 'dot' ? 'dot' : 'swap'}" style="width:22px;height:22px"></i>`;
+    const head = document.createElement('div');
+    head.innerHTML = `<div class="reco-label">${reco.sel === 0 ? '1순위' : `대안 ${reco.sel + 1}`} · 지금 할 수</div>`;
+    const text = document.createElement('p');
+    text.className = 'reco-text';
+    text.textContent = actionText(first, st);
+    head.append(text);
+    top.append(shape, head);
+    card.append(top);
+
+    if (res.actions.length > 1) {
+      const seq = document.createElement('div');
+      seq.className = 'reco-seq';
+      res.actions.slice(1).forEach((a, i) => {
+        const line = document.createElement('div');
+        line.innerHTML = `<b>${CIRCLED[i + 1]}</b> `;
+        line.append(actionText(a, st));
+        seq.append(line);
+      });
+      card.append(seq);
+    }
+
+    const ul = document.createElement('ul');
+    ul.className = 'reco-reasons';
+    for (const r of res.reasons) {
+      const li = document.createElement('li');
+      li.textContent = r;
+      ul.append(li);
+    }
+    card.append(ul);
+
+    const foot = document.createElement('div');
+    foot.className = 'reco-foot';
+    foot.innerHTML = `<span class="reco-score">이번 턴 +${fmt(res.points)}점</span><span class="spacer"></span>`;
+    const apply = document.createElement('button');
+    apply.type = 'button';
+    apply.className = 'btn sm primary';
+    apply.textContent = '이 수 적용';
+    apply.title = '데모 판에 첫 수를 반영합니다';
+    apply.addEventListener('click', () => applyFirstAction(res));
+    foot.append(apply);
+    card.append(foot);
+    box.append(card);
+
+    if (reco.results.length > 1) {
+      const alts = document.createElement('div');
+      alts.className = 'reco-alts';
+      reco.results.forEach((r, i) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'alt';
+        b.setAttribute('aria-pressed', String(i === reco.sel));
+        const a0 = r.actions[0];
+        const label = a0.type === 'place' ? pieceLabel(st.hand[a0.piece]) : a0.type === 'dot' ? '점 찍기' : '바꿔 뽑기';
+        b.innerHTML = `<span>${i + 1}. ${escapeHtml(label)}</span><span class="mono">+${fmt(r.points)} · 평가 ${fmt(r.score)}</span>`;
+        b.addEventListener('click', () => selectAlt(i));
+        alts.append(b);
+      });
+      box.append(alts);
+    }
+
+    if (reco.notes.length) {
+      const n = document.createElement('div');
+      n.className = 'reco-notes';
+      n.textContent = reco.notes.join(' · ');
+      box.append(n);
+    }
+    if (reco.stats) {
+      const s = document.createElement('div');
+      s.className = 'reco-stats';
+      s.textContent = `${reco.done ? '' : '계산 중 · '}${Math.round(reco.stats.ms)}ms · 빔 ${reco.stats.beam} · 후보 ${fmt(reco.stats.nodes)}`;
+      box.append(s);
+    }
+  }
+
+  function selectAlt(i) {
+    if (i >= reco.results.length) return;
+    reco.sel = i;
+    renderReco();
+    renderBoard();
+    renderHand();
+  }
+
+  // 데모 판에 추천의 첫 수를 반영한다 (추천을 따르는 연습·검증용)
+  function applyFirstAction(res) {
+    const st = cur();
+    const step = res.steps[0];
+    const a = step.action;
+    if (a.type === 'swap') {
+      st.abilities.swap = Math.max(0, st.abilities.swap - 1);
+      st.hand[a.piece] = null;
+      toast(`손패 ${a.piece + 1}번을 비웠습니다. 새로 뽑힌 조각을 입력하세요.`);
+    } else {
+      for (const [r, c] of step.cells) pieces.setBit(st.board, r, c, true);
+      for (const r of step.clearedRows) {
+        st.board[r] = 0;
+        st.items.dot[r] = 0;
+        st.items.swap[r] = 0;
+      }
+      if (a.type === 'dot') st.abilities.dot = Math.max(0, st.abilities.dot - 1);
+      else st.hand[a.piece] = null;
+      st.abilities.dot += step.gotDot;
+      st.abilities.swap += step.gotSwap;
+      st.clearedLines += step.lines;
+      if (st.abilities.untilNext > 0) st.abilities.untilNext--;
+      if (st.hand.every(p => !p)) toast('손패 3개를 다 썼습니다. 새 손패를 입력하세요.');
+    }
+    reco.results = [];
+    reco.sel = 0;
+    demoChanged();
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
   }
 
   /* ---------- 디버그 ---------- */
 
   function exportState() {
-    return { board: demo.board, items: demo.items, hand: demo.hand, abilities: demo.abilities, clearedLines: demo.clearedLines };
+    const st = cur();
+    return { board: st.board, items: st.items, hand: st.hand, abilities: st.abilities, clearedLines: st.clearedLines };
   }
 
   function renderDebug() {
-    const lines = demo.board.map((row, r) => {
+    const st = cur();
+    const lines = st.board.map((row, r) => {
       let s = '';
       for (let c = 0; c < COLS; c++) {
-        const icon = pieces.getBit(demo.items.dot, r, c) ? 'o' : pieces.getBit(demo.items.swap, r, c) ? 'x' : null;
-        s += pieces.getBit(demo.board, r, c) ? (icon ? icon.toUpperCase() : '■') : (icon ?? '·');
+        const icon = pieces.getBit(st.items.dot, r, c) ? 'o' : pieces.getBit(st.items.swap, r, c) ? 'x' : null;
+        s += pieces.getBit(st.board, r, c) ? (icon ? icon.toUpperCase() : '■') : (icon ?? '·');
       }
       return `${String(r + 1).padStart(2)} ${s}  0x${row.toString(16).toUpperCase().padStart(3, '0')}`;
     });
@@ -1041,11 +2235,32 @@ const ui = (() => {
         toast('JSON 형식이 아닙니다.');
         return;
       }
-      demo = sanitizeDemo(parsed);
-      renderHand();
-      demoChanged();
+      setDemo(parsed);
       toast('상태를 적용했습니다.');
     });
+    $('#btnSelfTest').addEventListener('click', () => {
+      $('#testOut').textContent = '테스트 중…';
+      setTimeout(() => renderTests(selftest.run(settings)), 30);
+    });
+  }
+
+  function setDemo(v) {
+    demo = sanitizeDemo(v);
+    reco.results = [];
+    reco.sel = 0;
+    demoChanged();
+  }
+
+  function renderTests(list) {
+    const out = $('#testOut');
+    out.replaceChildren(...list.map(t => {
+      const d = document.createElement('div');
+      d.className = t.pass ? 'pass' : 'fail';
+      d.textContent = `${t.pass ? '통과' : '실패'} · ${t.name}${t.detail ? ' — ' + t.detail : ''}`;
+      return d;
+    }));
+    const failed = list.filter(t => !t.pass).length;
+    toast(failed ? `자체 테스트 ${failed}개 실패` : `자체 테스트 ${list.length}개 모두 통과`);
   }
 
   /* ---------- 설정 서랍 ---------- */
@@ -1064,14 +2279,15 @@ const ui = (() => {
       title: '탐색',
       fields: [
         num('solver.budgetMs', '시간 예산', 'ms', { min: 50, max: 10000, int: true }),
-        num('solver.beamWidth', '빔 폭', '시작값, 예산 안에서 늘려 감', { min: 1, max: 4096, int: true }),
+        num('solver.beamWidth', '빔 폭', '시작값, 예산 안에서 두 배씩 늘려 감', { min: 1, max: 4096, int: true }),
         num('solver.thetaDot', 'θ_dot', '점 찍기를 추천할 최소 이득'),
         num('solver.thetaSwap', 'θ_swap', '바꿔 뽑기를 추천할 최소 이득'),
+        num('solver.swapMinDict', '바꿔 뽑기 최소 사전 크기', '이보다 작으면 정보 부족', { min: 1, int: true }),
       ],
     },
     {
       title: '평가 가중치',
-      note: '기획서의 시작값입니다. 6단계 시뮬레이터로 조정합니다.',
+      note: '기획서의 시작값입니다. 시뮬레이터로 조정합니다.',
       fields: config.WEIGHTS.map(w => num(`weights.${w.key}`, w.label, w.desc)),
     },
     {
@@ -1088,6 +2304,7 @@ const ui = (() => {
         num('rules.abilityEvery', '아이콘 칸 생성 주기', '배치 횟수, 비우면 모름', { min: 1, int: true, nullable: true, unconfirmed: true }),
         { path: 'rules.stageThresholds', label: '단계 시작 줄 수', desc: '쉼표 구분, 1단계부터', kind: 'list' },
         { path: 'rules.keepUnusedPieces', label: '남은 조각 유지', desc: '일부만 쓰고 멈췄을 때', kind: 'bool', unconfirmed: true },
+        { path: 'rules.dotCountsAsPlacement', label: '점 찍기 배치 점수', desc: '점 찍기 1칸도 배치 점수를 받음', kind: 'bool', unconfirmed: true },
       ],
     },
   ];
@@ -1118,36 +2335,16 @@ const ui = (() => {
     return { ok, value: n };
   }
 
-  function fieldValueText(f) {
-    const v = getPath(settings, f.path);
+  function fieldValueText(obj, f) {
+    const v = getPath(obj, f.path);
     if (f.kind === 'list') return v.join(', ');
     return v == null ? '' : String(v);
   }
 
-  function buildSettings() {
-    const body = $('#settingsBody');
-    body.replaceChildren();
-    for (const g of SETTINGS_FIELDS) {
-      const sec = document.createElement('section');
-      sec.className = 'group';
-      const h = document.createElement('h3');
-      h.textContent = g.title;
-      sec.append(h);
-      if (g.note) {
-        const n = document.createElement('span');
-        n.className = 'hint';
-        n.textContent = g.note;
-        sec.append(n);
-      }
-      for (const f of g.fields) sec.append(buildField(f));
-      body.append(sec);
-    }
-    renderSettingsInfo();
-  }
-
-  function buildField(f) {
+  // obj의 path 값을 고치는 입력 하나. onChange는 올바른 값이 들어올 때마다 불린다.
+  function buildField(obj, f, onChange) {
     const row = document.createElement('label');
-    row.className = 'field' + (f.kind === 'range' ? ' range' : '');
+    row.className = 'field';
     const lab = document.createElement('span');
     lab.className = 'f-label';
     lab.textContent = f.label;
@@ -1170,25 +2367,25 @@ const ui = (() => {
       ctl.className = 'range-ctl';
       input = document.createElement('input');
       Object.assign(input, { type: 'range', min: f.min, max: f.max, step: f.step });
-      input.value = String(getPath(settings, f.path));
+      input.value = String(getPath(obj, f.path));
       const out = document.createElement('output');
       out.textContent = input.value;
       input.addEventListener('input', () => {
         out.textContent = input.value;
-        setPath(settings, f.path, Number(input.value));
-        saveSettings();
+        setPath(obj, f.path, Number(input.value));
+        onChange();
       });
       ctl.append(input, out);
     } else if (f.kind === 'bool') {
       ctl = input = document.createElement('input');
       input.type = 'checkbox';
-      input.checked = Boolean(getPath(settings, f.path));
+      input.checked = Boolean(getPath(obj, f.path));
       input.style.justifySelf = 'end';
     } else {
       ctl = input = document.createElement('input');
       input.type = f.kind === 'list' ? 'text' : 'number';
       if (f.kind === 'number') input.step = 'any';
-      input.value = fieldValueText(f);
+      input.value = fieldValueText(obj, f);
     }
 
     if (f.kind !== 'range') {
@@ -1196,15 +2393,14 @@ const ui = (() => {
         const { ok, value } = parseField(f, input);
         input.classList.toggle('invalid', !ok);
         if (!ok) return;
-        setPath(settings, f.path, value);
-        saveSettings();
-        renderAbilities();
+        setPath(obj, f.path, value);
+        onChange();
       });
       // 잘못된 값을 남긴 채 떠나면 저장된 값으로 되돌린다
       input.addEventListener('blur', () => {
         if (!input.classList.contains('invalid')) return;
         input.classList.remove('invalid');
-        input.value = fieldValueText(f);
+        input.value = fieldValueText(obj, f);
       });
     }
 
@@ -1212,17 +2408,81 @@ const ui = (() => {
     return row;
   }
 
+  function settingsChanged() {
+    saveSettings();
+    renderAbilities();
+    requestSolve();
+  }
+
+  function buildSettings() {
+    const body = $('#settingsBody');
+    body.replaceChildren();
+    for (const g of SETTINGS_FIELDS) {
+      const sec = document.createElement('section');
+      sec.className = 'group';
+      const h = document.createElement('h3');
+      h.textContent = g.title;
+      sec.append(h);
+      if (g.note) {
+        const n = document.createElement('span');
+        n.className = 'hint';
+        n.textContent = g.note;
+        sec.append(n);
+      }
+      for (const f of g.fields) sec.append(buildField(settings, f, settingsChanged));
+      body.append(sec);
+    }
+    renderSettingsInfo();
+  }
+
+  function renderDict() {
+    const list = $('#dictList');
+    if (!dict.pieces.length) {
+      list.innerHTML = '<span class="hint">아직 없습니다. 손패를 입력할 때 이름을 붙여 저장하세요.</span>';
+      return;
+    }
+    list.replaceChildren(...dict.pieces.map(e => {
+      const item = document.createElement('div');
+      item.className = 'dict-item';
+      const info = document.createElement('div');
+      const name = document.createElement('input');
+      name.type = 'text';
+      name.maxLength = 8;
+      name.value = e.name;
+      name.placeholder = '이름 없음';
+      name.setAttribute('aria-label', '조각 이름');
+      name.addEventListener('change', () => {
+        e.name = name.value.trim();
+        persist(storage.KEYS.dict, dict);
+        renderHand();
+      });
+      const seen = Object.values(e.seen).reduce((a, b) => a + b, 0);
+      const meta = document.createElement('span');
+      meta.className = 'hint';
+      meta.textContent = `${e.cells.length}칸 · 등장 기록 ${seen}회`;
+      info.append(name, meta);
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'btn sm ghost';
+      del.textContent = '삭제';
+      del.addEventListener('click', () => {
+        if (!confirm(`사전에서 '${e.name || '이름 없음'}' 조각을 지웁니다.`)) return;
+        dict.pieces = dict.pieces.filter(x => x !== e);
+        persist(storage.KEYS.dict, dict);
+        renderDict();
+        requestSolve();
+      });
+      item.append(miniGrid(e.cells, 'sm'), info, del);
+      return item;
+    }));
+  }
+
   function renderSettingsInfo() {
-    $('#dictCount').textContent = `${dict.pieces.length}종`;
+    renderDict();
     const handSet = settings.handRects.filter(Boolean).length;
     $('#calBoard').textContent = settings.boardRect ? '저장됨' : '없음';
     $('#calHand').textContent = handSet ? `${handSet} / 3` : '없음';
     $('#calBase').textContent = settings.baseline ? '저장됨' : '없음';
-  }
-
-  function loadDict() {
-    const d = storage.load(storage.KEYS.dict);
-    return d && Array.isArray(d.pieces) ? d : { version: 1, pieces: [] };
   }
 
   function setupDrawer() {
@@ -1233,10 +2493,11 @@ const ui = (() => {
       $('#btnCloseDrawer').focus();
     };
     const close = () => {
-      if (drawer.hidden) return;
+      if (drawer.hidden) return false;
       drawer.hidden = backdrop.hidden = true;
       saveSettings.flush();
       $('#btnSettings').focus();
+      return true;
     };
     $('#btnSettings').addEventListener('click', open);
     $('#btnCloseDrawer').addEventListener('click', close);
@@ -1250,6 +2511,7 @@ const ui = (() => {
       saveSettings.flush();
       buildSettings();
       renderAbilities();
+      requestSolve();
       toast('설정을 기본값으로 되돌렸습니다.');
     });
 
@@ -1271,13 +2533,158 @@ const ui = (() => {
         const d = JSON.parse(await f.text());
         if (!d || !Array.isArray(d.pieces)) throw new Error('pieces 배열이 없음');
         if (dict.pieces.length && !confirm(`지금 사전(${dict.pieces.length}종)을 가져온 사전(${d.pieces.length}종)으로 바꿉니다.`)) return;
-        dict = { version: 1, pieces: d.pieces };
+        persist(storage.KEYS.dict, { version: 1, pieces: d.pieces });
+        dict = loadDict();
         persist(storage.KEYS.dict, dict);
         renderSettingsInfo();
-        toast(`조각 사전 ${d.pieces.length}종을 가져왔습니다.`);
+        renderHand();
+        requestSolve();
+        toast(`조각 사전 ${dict.pieces.length}종을 가져왔습니다.`);
       } catch {
         toast('조각 사전 JSON을 읽지 못했습니다.');
       }
+    });
+  }
+
+  /* ---------- 시뮬레이터 ---------- */
+
+  const SIM_FIELDS = [
+    num('games', '판 수', '가중치 묶음마다', { min: 1, max: 1000, int: true }),
+    num('maxTurns', '최대 턴', '한 판에서', { min: 1, max: 2000, int: true }),
+    num('iconEvery', '아이콘 칸 생성 주기', '배치 횟수 (가정값)', { min: 1, max: 99, int: true, unconfirmed: true }),
+    num('beam', '빔 폭', '고정, 시간 예산 없음', { min: 1, max: 256, int: true }),
+    num('seed', '시드', '같은 시드 = 같은 손패 순서', { min: 0, int: true }),
+  ];
+
+  function simCfg() {
+    const s = settings.sim;
+    return {
+      rules: settings.rules, solver: settings.solver, dict: dictForSolver(1).map(({ cells, name, seen }) => ({ cells, name, seen })),
+      games: s.games, maxTurns: s.maxTurns, iconEvery: s.iconEvery, beam: s.beam, seed: s.seed,
+    };
+  }
+
+  function setupSim() {
+    const dlg = $('#simDialog');
+    $('#btnSim').addEventListener('click', () => {
+      const fields = $('#simFields');
+      fields.replaceChildren(...SIM_FIELDS.map(f => buildField(settings.sim, f, saveSettings)));
+      dlg.showModal();
+    });
+    $('#simClose').addEventListener('click', () => dlg.close());
+    dlg.addEventListener('cancel', () => solver.stopSim());
+    $('#simStop').addEventListener('click', () => {
+      solver.stopSim();
+      simBusy(false);
+      $('#simLog').textContent += '중지했습니다.\n';
+    });
+
+    $('#simCompare').addEventListener('click', () => {
+      if (!simReady()) return;
+      const cfg = simCfg();
+      simBusy(true);
+      $('#simOut').replaceChildren();
+      $('#simLog').textContent = `사전 ${cfg.dict.length}종, ${cfg.games}판씩 비교합니다.\n`;
+      const t0 = performance.now();
+      solver.simulate({
+        type: 'simulate', cfg,
+        sets: [{ label: '현재 가중치', weights: settings.weights }, { label: '기본 가중치', weights: config.defaultWeights() }],
+      }, m => {
+        if (m.type === 'progress') $('#simBar').style.width = `${(m.done / m.total) * 100}%`;
+        else if (m.type === 'simDone') {
+          simBusy(false);
+          renderSimTable(m.sets);
+          $('#simLog').textContent += `${((performance.now() - t0) / 1000).toFixed(1)}초 걸렸습니다.\n`;
+        } else if (m.type === 'error') { simBusy(false); $('#simLog').textContent += `오류: ${m.message}\n`; }
+      });
+    });
+
+    $('#simTune').addEventListener('click', () => {
+      if (!simReady()) return;
+      const cfg = simCfg();
+      simBusy(true);
+      $('#simOut').replaceChildren();
+      const log = $('#simLog');
+      log.textContent = `가중치를 하나씩 ×1.3, ×0.7로 바꿔 보며 평균 점수가 오르면 받아들입니다 (${cfg.games}판씩).\n`;
+      solver.simulate({ type: 'autotune', cfg, weights: settings.weights }, m => {
+        if (m.type === 'tuneStep') {
+          $('#simBar').style.width = `${(m.done / m.total) * 100}%`;
+          const h = m.h;
+          log.textContent += h.value === null
+            ? `시작: 평균 ${fmt(h.avg)}점\n`
+            : `${h.key} = ${h.value}: 평균 ${fmt(h.avg)}점 ${h.accepted ? '→ 채택' : ''}\n`;
+          log.scrollTop = log.scrollHeight;
+        } else if (m.type === 'tuneDone') {
+          simBusy(false);
+          renderTuneResult(m);
+        } else if (m.type === 'error') { simBusy(false); log.textContent += `오류: ${m.message}\n`; }
+      });
+    });
+  }
+
+  function simReady() {
+    if (dict.pieces.length < 1) {
+      toast('조각 사전이 비어 있습니다. 손패를 입력하며 조각을 저장하세요.');
+      return false;
+    }
+    return true;
+  }
+
+  function simBusy(on) {
+    $('#simCompare').disabled = on;
+    $('#simTune').disabled = on;
+    $('#simStop').disabled = !on;
+    if (on) $('#simBar').style.width = '0';
+  }
+
+  function renderSimTable(sets) {
+    const t = document.createElement('table');
+    t.innerHTML = '<thead><tr><th></th><th>평균 점수</th><th>평균 턴</th><th>평균 줄</th><th>게임 오버</th></tr></thead>';
+    const tb = document.createElement('tbody');
+    for (const s of sets) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${escapeHtml(s.label)}</td><td>${fmt(s.score)}</td><td>${s.turns.toFixed(1)}</td><td>${s.cleared.toFixed(1)}</td><td>${Math.round(s.over * 100)}%</td>`;
+      tb.append(tr);
+    }
+    t.append(tb);
+    $('#simOut').replaceChildren(t);
+  }
+
+  function renderTuneResult(m) {
+    const changed = Object.keys(m.weights).filter(k => m.weights[k] !== settings.weights[k]);
+    const out = $('#simOut');
+    out.replaceChildren();
+    const p = document.createElement('p');
+    p.textContent = changed.length
+      ? `평균 ${fmt(m.history[0].avg)}점 → ${fmt(m.agg.score)}점. 바뀐 가중치: ${changed.map(k => `${k} ${settings.weights[k]} → ${m.weights[k]}`).join(', ')}`
+      : `평균 ${fmt(m.agg.score)}점. 더 나은 가중치를 찾지 못했습니다.`;
+    out.append(p);
+    if (changed.length) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn sm primary';
+      b.textContent = '이 가중치 적용';
+      b.style.marginTop = '8px';
+      b.addEventListener('click', () => {
+        settings.weights = { ...m.weights };
+        settingsChanged();
+        toast('조정된 가중치를 적용했습니다.');
+        b.disabled = true;
+      });
+      out.append(b);
+    }
+  }
+
+  /* ---------- 단축키 ---------- */
+
+  function setupKeys() {
+    addEventListener('keydown', e => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const t = e.target;
+      if (t instanceof HTMLElement && (t.closest('input, textarea, select, dialog[open]') || t.isContentEditable)) return;
+      if (!$('#drawer').hidden) return;
+      if (e.code === 'Space') { e.preventDefault(); solveNow(); }
+      else if (e.key === '1' || e.key === '2' || e.key === '3') selectAlt(Number(e.key) - 1);
     });
   }
 
@@ -1292,17 +2699,200 @@ const ui = (() => {
     setupAbilities();
     setupDrawer();
     setupDebug();
+    setupSim();
+    setupKeys();
     renderTools();
-    renderHand();
     renderDemo();
+    renderReco();
+    setStatus('데모 모드');
+    requestSolve();
+    if (new URLSearchParams(location.search).has('selftest')) {
+      $('#debugPanel').open = true;
+      setTimeout(() => renderTests(selftest.run(settings)), 50);
+    }
   }
 
-  return { init, get settings() { return settings; }, get demo() { return demo; }, get dict() { return dict; } };
+  return {
+    init, setDemo, solveNow, selectAlt,
+    get settings() { return settings; }, get demo() { return demo; }, get dict() { return dict; }, get reco() { return reco; },
+  };
+})();
+
+/* ================================================================
+ * selftest — 기획서 10장의 코드 검증 항목
+ * ================================================================ */
+const selftest = (() => {
+  const { ROWS, COLS, FULL } = core;
+  const I5 = [[0, 0], [1, 0], [2, 0], [3, 0], [4, 0]];
+  const empty = () => ({ board: new Array(ROWS).fill(0), items: { dot: new Array(ROWS).fill(0), swap: new Array(ROWS).fill(0) } });
+
+  function input(settings, st, hand, abilities = {}) {
+    return {
+      ...st, hand, abilities: { dot: 0, swap: 0, untilNext: 0, ...abilities },
+      clearedLines: 0, rules: settings.rules, weights: config.defaultWeights(),
+      solver: { ...config.SOLVER, budgetMs: 700 }, dict: [],
+    };
+  }
+
+  function run(settings) {
+    const out = [];
+    const t = (name, fn) => {
+      try {
+        const r = fn();
+        out.push({ name, pass: r === true || r?.pass === true, detail: r?.detail ?? '' });
+      } catch (err) {
+        out.push({ name, pass: false, detail: String(err) });
+      }
+    };
+    const n = cells => core.orientations(cells).length;
+
+    t('방향 생성: ㅣ 2 · 정사각형 1 · T 4 · S 4 · L 8', () => {
+      const got = [n(I5), n([[0, 0], [0, 1], [1, 0], [1, 1]]), n([[0, 0], [0, 1], [0, 2], [1, 1]]), n([[0, 1], [0, 2], [1, 0], [1, 1]]), n([[0, 0], [1, 0], [2, 0], [2, 1]])];
+      return { pass: got.join() === '2,1,4,4,8', detail: got.join(', ') };
+    });
+
+    t('방향 정의: 반전 후 시계 방향 회전', () => {
+      // ㄱ자(XX / .X)를 좌우 반전하면 XX / X.
+      const flipped = core.normalize(core.transform([[0, 0], [0, 1], [1, 1]], 1, 0));
+      // L자(X. / X. / XX)를 시계 방향 90° 돌리면 XXX / X..
+      const rotated = core.normalize(core.transform([[0, 0], [1, 0], [2, 0], [2, 1]], 0, 1));
+      return { pass: core.cellsKey(flipped) === '0,0 0,1 1,0' && core.cellsKey(rotated) === '0,0 0,1 0,2 1,0', detail: `${core.cellsKey(flipped)} / ${core.cellsKey(rotated)}` };
+    });
+
+    t('사전 정규화: 회전·반전이 달라도 같은 키', () => {
+      const a = core.canonicalKey([[0, 0], [1, 0], [2, 0], [2, 1]]);
+      const b = core.canonicalKey([[0, 0], [0, 1], [0, 2], [1, 0]]);
+      const c = core.canonicalKey([[0, 1], [1, 1], [2, 0], [2, 1]]);
+      return a === b && b === c;
+    });
+
+    t('줄 삭제와 점수: 1~5줄 동시 삭제', () => {
+      const piece = core.makePiece({ cells: I5 });
+      const vert = piece.orients.find(o => o.h === 5);
+      const got = [];
+      for (let k = 1; k <= 5; k++) {
+        const st = empty();
+        for (let r = 11; r < 11 + k; r++) st.board[r] = FULL & ~1;
+        const res = core.applyPlace(st.board, st.items, vert, 11, 0);
+        const pts = 5 * settings.rules.placeScorePerCell + core.lineScore(settings.rules, res.lines);
+        got.push(`${res.lines}줄 ${pts}`);
+        if (res.lines !== k || pts !== 5 + 300 * k * k) return { pass: false, detail: got.join(', ') };
+        if (res.board.some((row, r) => r >= 11 && r < 11 + k && row !== 0)) return { pass: false, detail: '지운 줄이 남음' };
+      }
+      return { pass: true, detail: got.join(', ') };
+    });
+
+    t('낙하 없음: 지운 줄 위 칸은 그대로', () => {
+      const st = empty();
+      st.board[14] = FULL & ~1;
+      st.board[13] = 0b1010;
+      const o = core.makePiece({ cells: [[0, 0]] }).orients[0];
+      const res = core.applyPlace(st.board, st.items, o, 14, 0);
+      return res.board[14] === 0 && res.board[13] === 0b1010;
+    });
+
+    t('능력 아이콘이 든 줄을 지우면 획득', () => {
+      const st = empty();
+      st.board[15] = FULL & ~1;
+      st.items.dot[15] = 1 << 4;
+      st.items.swap[15] = 1 << 7;
+      const o = core.makePiece({ cells: [[0, 0]] }).orients[0];
+      const res = core.applyPlace(st.board, st.items, o, 15, 0);
+      return res.gotDot === 1 && res.gotSwap === 1 && res.items.dot[15] === 0;
+    });
+
+    t('충돌과 경계: 불가능한 배치가 후보에 없음', () => {
+      const st = empty();
+      st.board[0] = 0b1111100000;
+      const ctx = core.makeCtx(input(settings, st, [{ cells: [[0, 0], [0, 1], [0, 2], [1, 0]] }, null, null]));
+      const root = core.rootNode(ctx, input(settings, st, [{ cells: [[0, 0], [0, 1], [0, 2], [1, 0]] }, null, null]));
+      const { leaves } = core.searchTurn(ctx, root, 100000);
+      for (const lf of leaves) {
+        const a = lf.actions[0];
+        const o = ctx.hand[a.piece].orients[a.orient];
+        if (a.r < 0 || a.c < 0 || a.r + o.h > ROWS || a.c + o.w > COLS) return { pass: false, detail: '판 밖 배치' };
+        if (!core.fits(st.board, o, a.r, a.c)) return { pass: false, detail: '찬 칸과 겹침' };
+      }
+      return { pass: leaves.length > 0, detail: `후보 ${leaves.length}개` };
+    });
+
+    const timed = (inp) => {
+      const t0 = performance.now();
+      const out = core.solve(inp);
+      return { out, ms: performance.now() - t0 };
+    };
+
+    t('솔버 ①: 한 칸만 비는 줄을 1칸 조각으로 완성', () => {
+      const st = empty();
+      st.board[9] = FULL & ~(1 << 6);
+      const { out, ms } = timed(input(settings, st, [{ cells: [[0, 0]] }, null, null]));
+      const a = out.results[0]?.actions[0];
+      return { pass: a?.r === 9 && a?.c === 6 && ms < 800, detail: `${a ? `${a.r + 1}행 ${a.c + 1}열` : '없음'}, ${Math.round(ms)}ms` };
+    });
+
+    t('솔버 ②: 4줄이 같은 열만 비고 ㅣ가 있으면 4줄 동시 삭제', () => {
+      const st = empty();
+      for (let r = 12; r < 16; r++) st.board[r] = FULL & ~(1 << 9);
+      const { out, ms } = timed(input(settings, st, [{ cells: I5, name: 'ㅣ' }, { cells: [[0, 0], [0, 1], [1, 0], [1, 1]] }, { cells: [[0, 0], [0, 1], [0, 2]] }]));
+      const steps = out.results[0]?.steps ?? [];
+      const four = steps.find(s => s.lines === 4);
+      return { pass: !!four && ms < 800, detail: `${steps.map(s => s.lines).join('·')}줄, ${Math.round(ms)}ms` };
+    });
+
+    t('솔버 ②′: 5줄 동시 삭제 (+7,500)', () => {
+      const st = empty();
+      for (let r = 11; r < 16; r++) st.board[r] = FULL & ~(1 << 3);
+      const { out, ms } = timed(input(settings, st, [{ cells: I5 }, { cells: [[0, 0], [0, 1]] }, { cells: [[0, 0], [1, 0], [1, 1]] }]));
+      const steps = out.results[0]?.steps ?? [];
+      return { pass: steps.some(s => s.lines === 5 && s.lineScore === 7500) && ms < 800, detail: `${steps.map(s => s.lines).join('·')}줄, ${Math.round(ms)}ms` };
+    });
+
+    t('솔버 ③: 놓을 자리가 하나뿐이면 그 위치', () => {
+      const st = empty();
+      // 다른 행은 서로 닿지 않는 1칸 구멍만, 5~6행 3~4열에 ㄴ자 3칸 구멍 하나
+      for (let r = 0; r < ROWS; r++) st.board[r] = FULL & ~(1 << (r % 2 ? 9 : 0));
+      st.board[4] = FULL & ~(1 << 2);
+      st.board[5] = FULL & ~((1 << 2) | (1 << 3));
+      const { out, ms } = timed(input(settings, st, [{ cells: [[0, 0], [1, 0], [1, 1]] }, null, null]));
+      const a = out.results[0]?.actions[0];
+      const cells = out.results[0]?.steps[0]?.cells.map(([r, c]) => `${r},${c}`).sort().join(' ');
+      return { pass: cells === '4,2 5,2 5,3' && ms < 800, detail: `${cells ?? '없음'}, ${Math.round(ms)}ms` };
+    });
+
+    t('막혔을 때 점 찍기를 추천', () => {
+      const st = empty();
+      for (let r = 0; r < ROWS; r++) st.board[r] = FULL & ~(1 << ((r * 7) % 10));
+      const { out } = timed(input(settings, st, [{ cells: [[0, 0], [0, 1]] }, null, null], { dot: 1 }));
+      return { pass: out.results[0]?.kind === 'dot', detail: out.results[0]?.kind ?? out.notes.join(' ') };
+    });
+
+    t('막히고 능력도 없으면 게임 오버 안내', () => {
+      const st = empty();
+      for (let r = 0; r < ROWS; r++) st.board[r] = FULL & ~(1 << ((r * 7) % 10));
+      const { out } = timed(input(settings, st, [{ cells: [[0, 0], [0, 1]] }, null, null]));
+      return { pass: out.results.length === 0 && out.notes.some(s => s.includes('게임 오버')), detail: out.notes.join(' ') };
+    });
+
+    t('사전이 작으면 바꿔 뽑기는 정보 부족', () => {
+      const { out } = timed(input(settings, empty(), [{ cells: I5 }, null, null], { swap: 2 }));
+      return { pass: out.results.every(r => r.kind !== 'swap') && out.notes.some(s => s.includes('정보 부족')), detail: out.notes.join(' ') };
+    });
+
+    t('기본 예산 700ms 안에 끝남 (빈 판, 큰 조각 3개)', () => {
+      const big = [[0, 0], [0, 1], [0, 2], [1, 0], [1, 2], [2, 0], [2, 1], [2, 2], [3, 0], [3, 2]];
+      const { ms } = timed(input(settings, empty(), [{ cells: big }, { cells: [[0, 0], [1, 0], [1, 1], [1, 2], [2, 1], [3, 1], [4, 1]] }, { cells: I5 }], { dot: 2, swap: 1 }));
+      return { pass: ms < 800, detail: `${Math.round(ms)}ms` };
+    });
+
+    return out;
+  }
+
+  return { run };
 })();
 
 ui.init();
 // 콘솔·자동 검증용
-window.HMM = { config, storage, pieces, ui };
+window.HMM = { config, storage, core, pieces, solver, ui, selftest };
 </script>
 </body>
 </html>
