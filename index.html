@@ -98,6 +98,23 @@ button:disabled{cursor:not-allowed;opacity:.45}
 .board-note{margin-top:10px;text-align:center}
 .board-note.warn{color:var(--gold)}
 
+/* 공유 화면 */
+.mirror-wrap{position:relative;display:flex;justify-content:center;background:#0C0E13;border-radius:10px;min-height:240px;overflow:hidden}
+#mirror{display:block;touch-action:none;user-select:none}
+.mirror-wrap.correcting #mirror,.mirror-wrap.calibrating #mirror{cursor:crosshair}
+.mirror-empty{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;gap:6px;padding:24px;color:var(--dim);font-size:13px;text-align:center}
+.mirror-empty b{color:var(--text)}
+.calib-bar{background:var(--panel-2);border:1px solid var(--accent);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+.calib-step{font-size:13px;line-height:1.5}
+.calib-step b{color:var(--accent)}
+.alert{
+  border:1px solid var(--gold);background:rgba(243,201,105,.08);color:var(--text);border-radius:10px;
+  padding:8px 12px;margin-bottom:10px;font-size:13px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+}
+.alert.bad{border-color:var(--danger);background:rgba(255,122,122,.08)}
+.correct-tools{margin-bottom:10px;display:grid;gap:6px}
+.fake-opts{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;margin-top:10px}
+
 /* 손패 */
 .hand{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .hand-card{
@@ -268,7 +285,7 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-b
   <div class="brand">한글 모아모아 <b>솔버</b></div>
   <div class="modes" role="group" aria-label="모드">
     <button class="mode" type="button" data-mode="demo" aria-pressed="true">데모</button>
-    <button class="mode" type="button" data-mode="live" aria-pressed="false" disabled title="3단계(캡처)에서 구현">화면 공유</button>
+    <button class="mode" type="button" data-mode="live" aria-pressed="false">화면 공유</button>
   </div>
   <span class="status" id="status">데모 모드</span>
   <div class="actions">
@@ -277,7 +294,60 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-b
 </header>
 
 <main class="layout">
-  <section class="panel" aria-labelledby="boardTitle">
+  <section class="panel" id="liveView" hidden aria-labelledby="liveTitle">
+    <div class="panel-head">
+      <h2 id="liveTitle">공유 화면</h2>
+      <span class="spacer"></span>
+      <button class="btn sm primary" type="button" id="btnShare">화면 공유 시작</button>
+      <button class="btn sm" type="button" id="btnFake" title="실제 게임 없이 캡처와 인식을 시험하는 개발용 화면. 데모 탭의 판과 손패를 그립니다.">가상 화면</button>
+      <button class="btn sm" type="button" id="btnCalib" disabled>캘리브레이션</button>
+      <button class="btn sm" type="button" id="btnCorrect" aria-pressed="false" disabled>보정</button>
+      <button class="btn sm" type="button" id="btnHeat" aria-pressed="false" disabled>히트맵</button>
+    </div>
+    <div class="calib-bar" id="calibBar" hidden>
+      <p class="calib-step" id="calibStep"></p>
+      <div class="row-btns">
+        <button class="btn sm" type="button" id="calPrev">이전</button>
+        <button class="btn sm" type="button" id="calNext">다음</button>
+        <button class="btn sm" type="button" id="calZoom" aria-pressed="false">확대</button>
+        <button class="btn sm" type="button" id="calPreset" hidden>가상 화면 위치로 채우기</button>
+        <button class="btn sm primary" type="button" id="calBaseline" hidden>빈 판 기준 저장</button>
+        <span class="spacer"></span>
+        <button class="btn sm ghost" type="button" id="calCancel">취소</button>
+        <button class="btn sm primary" type="button" id="calDone" disabled>저장하고 마치기</button>
+      </div>
+    </div>
+    <div class="alert" id="liveAlert" hidden></div>
+    <div class="correct-tools" id="correctTools" hidden>
+      <div class="tools" role="radiogroup" aria-label="보정 도구" id="ctools">
+        <button class="tool" type="button" role="radio" data-ctool="fill"><i class="sw fill"></i>칸 채움·비움</button>
+        <button class="tool" type="button" role="radio" data-ctool="dot"><i class="sw dot"></i>점 찍기 아이콘</button>
+        <button class="tool" type="button" role="radio" data-ctool="swap"><i class="sw swap"></i>바꿔 뽑기 아이콘</button>
+        <button class="tool" type="button" role="radio" data-ctool="tplDot"><i class="sw dot"></i>템플릿 등록: 점 찍기</button>
+        <button class="tool" type="button" role="radio" data-ctool="tplSwap"><i class="sw swap"></i>템플릿 등록: 바꿔 뽑기</button>
+      </div>
+      <p class="hint">보정은 지금 한 수에만 적용됩니다. 게임 판이 바뀌면 새 인식 결과로 덮어씁니다. <kbd>R</kbd> 보정 버리고 다시 인식</p>
+    </div>
+    <div class="mirror-wrap" id="mirrorWrap">
+      <canvas id="mirror" aria-label="공유 화면 미러"></canvas>
+      <div class="mirror-empty" id="mirrorEmpty">
+        <p><b>화면 공유 시작</b>을 누르고 게임 창을 고르세요.</p>
+        <p>게임은 창 모드나 테두리 없는 창 모드로 두세요. 전체 화면(독점) 모드는 검은 화면으로 잡힐 수 있습니다.</p>
+        <p>이 페이지는 화면을 읽기만 하고 게임에 어떤 입력도 보내지 않습니다. 영상은 브라우저 밖으로 나가지 않습니다.</p>
+      </div>
+    </div>
+    <div class="fake-opts" id="fakeOpts" hidden>
+      <span class="hint">가상 화면은 데모 탭의 판·손패를 게임처럼 그립니다.</span>
+      <label class="check"><input type="checkbox" data-fake="preview" /> 마우스 미리보기</label>
+      <label class="check"><input type="checkbox" data-fake="cursor" /> 손 모양 커서</label>
+      <label class="check"><input type="checkbox" data-fake="selected" /> 1번 카드 선택</label>
+      <label class="check"><input type="checkbox" data-fake="blur" checked /> 압축 번짐</label>
+      <span class="hint" id="fakeScore"></span>
+    </div>
+    <p class="hint board-note" id="liveNote"></p>
+  </section>
+
+  <section class="panel" id="demoView" aria-labelledby="boardTitle">
     <div class="panel-head">
       <h2 id="boardTitle">판 <small>10 × 16</small></h2>
       <div class="tools" role="radiogroup" aria-label="편집 도구" id="tools">
@@ -343,6 +413,7 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-b
     <span class="hint">손패에서 이름을 붙여 저장한 모양입니다. 회전·반전이 달라도 같은 조각으로 알아봅니다. '배치 불가 조각' 평가와 바꿔 뽑기 판단, 시뮬레이터에 쓰입니다.</span>
     <div class="dict-list" id="dictList"></div>
     <div class="row-btns">
+      <button class="btn sm" type="button" id="btnDictPreset" title="보내 주신 조각 이미지에서 읽은 모양을 사전에 더합니다">기본 조각 불러오기</button>
       <button class="btn sm" type="button" id="btnDictExport">내보내기</button>
       <button class="btn sm" type="button" id="btnDictImport">가져오기</button>
       <input type="file" id="dictFile" accept="application/json,.json" hidden />
@@ -434,10 +505,38 @@ const config = (() => {
   const SOLVER = { budgetMs: 700, beamWidth: 16, thetaDot: 300, thetaSwap: 300, swapMinDict: 4 };
 
   // 인식 임계값은 실제 화면에서 정한다. 아래는 슬라이더의 시작 위치일 뿐이다.
-  const RECOG = { tFill: 15, tGloss: 30 };
+  const RECOG = { tFill: 15, tGloss: 30, tIcon: 0.6, previewTol: 40 };
+  // 기획서 5장의 샘플 측정값 (칸 약 26px). 영상 압축으로 달라질 수 있어 previewTol 만큼 허용한다.
+  const RECOG_CONST = {
+    colors: { green: [40, 223, 121], x: [254, 150, 120], forecast: [152, 233, 173] },
+    glossPos: 0.2,      // 광택 패치 중심 (칸 한 변 비율)
+    glossSize: 0.12,    // 광택 패치 크기 (칸 한 변 비율, 26px 기준 3px)
+    stableFrames: 2,    // 같은 인식 결과가 연속 이만큼 유지되면 확정
+    maxTemplates: 4,    // 아이콘 종류마다 템플릿 최대 개수
+  };
 
   // 시뮬레이터 기본값. iconEvery는 미확인 규칙이라 시뮬레이션 가정값으로만 쓴다.
   const SIM = { games: 20, maxTurns: 80, iconEvery: 7, beam: 4, seed: 1 };
+
+  // 사용자가 보낸 조각 이미지(2026-10-03)에서 읽은 모양. X = 칸. 확인 필요 표시는 이미지가 작아 읽기가 불확실한 것.
+  // 그 밖의 조각(초록 ㅍ 비슷한 것, 노란 넓은 십자 등)은 읽지 못해 넣지 않았다. 손패 편집으로 사전에 추가한다.
+  const PIECE_PRESET = [
+    { name: 'ㅂ', rows: ['X.X', 'XXX', 'X.X', 'XXX'] },
+    { name: 'ㄱ', rows: ['XXX', '..X', '..X', '..X'], unsure: true },
+    { name: 'ㅣ', rows: ['X', 'X', 'X', 'X', 'X'] },
+    { name: 'ㅏ', rows: ['X..', 'X..', 'XXX', 'X..', 'X..'], unsure: true },
+    { name: 'ㆍ', rows: ['X'] },
+    { name: 'ㄷ', rows: ['XXX', 'X..', 'XXX'], unsure: true },
+    { name: 'ㄴ', rows: ['X.', 'XX'] },
+    { name: 'ㅡ', rows: ['XXX'] },
+    { name: 'ㅌ', rows: ['XX', 'X.', 'XX', 'X.', 'XX'], unsure: true },
+    { name: 'ㅅ', rows: ['.X.', 'X.X'] },
+    { name: 'ㄹ', rows: ['XX', '.X', 'XX', 'X.', 'XX'], unsure: true },
+    { name: 'ㅊ', rows: ['.X.', 'XXX', '.X.', 'X.X'] },
+    { name: '십', rows: ['.X.', 'XXX', '.X.'] },
+    { name: 'ㄱ작은', rows: ['XX', '.X', '.X'], unsure: true },
+  ];
+  const presetCells = rows => rows.flatMap((line, r) => [...line].flatMap((ch, c) => (ch === 'X' ? [[r, c]] : [])));
 
   const SETTINGS_VERSION = 1;
 
@@ -453,6 +552,10 @@ const config = (() => {
       baseline: null,
       tFill: RECOG.tFill,
       tGloss: RECOG.tGloss,
+      tIcon: RECOG.tIcon,
+      previewTol: RECOG.previewTol,
+      iconTemplates: { dot: [], swap: [] },
+      mode: 'demo',
       rules: clone(RULES),
       weights: defaultWeights(),
       solver: clone(SOLVER),
@@ -478,14 +581,14 @@ const config = (() => {
     return hi === undefined ? `${lo}줄 이상` : `${lo}~${hi - 1}줄`;
   }
 
-  return { RULES, WEIGHTS, SOLVER, RECOG, SIM, SETTINGS_VERSION, clone, defaultWeights, defaultSettings, lineScore, stageOf, stageRange };
+  return { RULES, WEIGHTS, SOLVER, RECOG, RECOG_CONST, SIM, PIECE_PRESET, presetCells, SETTINGS_VERSION, clone, defaultWeights, defaultSettings, lineScore, stageOf, stageRange };
 })();
 
 /* ================================================================
  * storage — 모든 접근을 try/catch로 감싸고 비어 있어도 동작
  * ================================================================ */
 const storage = (() => {
-  const KEYS = { settings: 'hmm.settings.v1', dict: 'hmm.dict.v1', demo: 'hmm.demo.v1' };
+  const KEYS = { settings: 'hmm.settings.v1', dict: 'hmm.dict.v1', demo: 'hmm.demo.v1', live: 'hmm.live.v1' };
 
   function load(key) {
     try {
@@ -1247,7 +1350,8 @@ const pieces = (() => {
     };
   }
 
-  // 상하좌우로 이어진 한 덩어리인지
+  // 한 덩어리인지. ㅅ처럼 대각선으로만 이어진 조각이 있어 대각선 이웃도 이어진 것으로 본다.
+  const NEIGHBORS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
   function isConnected(cells) {
     if (cells.length <= 1) return true;
     const key = (r, c) => r * 64 + c;
@@ -1256,7 +1360,7 @@ const pieces = (() => {
     const stack = [cells[0]];
     while (stack.length) {
       const [r, c] = stack.pop();
-      for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      for (const [dr, dc] of NEIGHBORS) {
         const k = key(r + dr, c + dc);
         if (all.has(k) && !seen.has(k)) { seen.add(k); stack.push([r + dr, c + dc]); }
       }
@@ -1333,6 +1437,597 @@ const solver = (() => {
   }
 
   return { solve, simulate, stopSim, get busy() { return busy; } };
+})();
+
+/* ================================================================
+ * fakeScreen — 개발용 가상 게임 화면. 실제 게임 없이 캡처·인식을 시험한다.
+ * 기획서의 측정값(광택 반점, 미리보기·예고 행 색)을 따라 그리지만 실제 게임과 같다는 보장은 없다.
+ * ================================================================ */
+const fakeScreen = (() => {
+  const W = 1280, H = 720;
+  const ROWS = 16, COLS = 10, FULL = (1 << COLS) - 1;
+  const BOARD = { x: 452, y: 150, cell: 26 };
+  const CARD = { x: 790, y: 132, w: 132, h: 128, gapY: 14, pad: 9, labelH: 30 };
+  const SCALES = [18, 14, 16];   // 카드마다 조각 배율이 다르다
+  const PALETTE = [[240, 120, 170], [64, 138, 226], [246, 204, 72], [96, 200, 112], [164, 112, 226], [246, 150, 72]];
+  const EMPTY = [70, 176, 174], EMPTY_EDGE = [56, 154, 152];
+  const C = { green: [40, 223, 121], x: [254, 150, 120], forecast: [152, 233, 173] };
+  const opts = { preview: false, cursor: false, selected: false, blur: true, previewAt: { r: 2, c: 3 } };
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const out = canvas.getContext('2d');
+  const scratch = document.createElement('canvas');
+  scratch.width = W;
+  scratch.height = H;
+  const ctx = scratch.getContext('2d');
+
+  const rgb = a => `rgb(${a[0]},${a[1]},${a[2]})`;
+  const shade = (a, k) => a.map(v => Math.max(0, Math.min(255, Math.round(v * k))));
+  const colorAt = (r, c) => PALETTE[((r >> 1) * 7 + Math.floor(c / 3) * 3) % PALETTE.length];
+
+  // 조각 칸: 짙은 테두리 + 단색 + 좌상단 흰 광택 반점
+  function block(x, y, s, col) {
+    ctx.fillStyle = rgb(shade(col, 0.7));
+    ctx.fillRect(x, y, s, s);
+    ctx.fillStyle = rgb(col);
+    ctx.fillRect(x + 2, y + 2, s - 4, s - 4);
+    const g = Math.max(2, Math.round(s * 0.2));
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x + Math.round(s * 0.12), y + Math.round(s * 0.12), g, g);
+  }
+
+  function emptyCell(x, y, s) {
+    ctx.fillStyle = rgb(EMPTY_EDGE);
+    ctx.fillRect(x, y, s, s);
+    ctx.fillStyle = rgb(EMPTY);
+    ctx.fillRect(x + 1, y + 1, s - 2, s - 2);
+  }
+
+  function dotIcon(x, y, s, a) {
+    ctx.globalAlpha = a;
+    ctx.strokeStyle = 'rgb(36,84,232)';
+    ctx.lineWidth = 2;
+    for (const rad of [s * 0.34, s * 0.19]) {
+      ctx.beginPath();
+      ctx.arc(x + s / 2, y + s / 2, rad, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.fillStyle = 'rgb(36,84,232)';
+    ctx.beginPath();
+    ctx.arc(x + s / 2, y + s / 2, s * 0.08, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  function swapIcon(x, y, s, a) {
+    ctx.globalAlpha = a;
+    ctx.fillStyle = ctx.strokeStyle = 'rgb(214,104,240)';
+    ctx.lineWidth = 3;
+    const cy = y + s / 2;
+    for (const [dy, dir] of [[-s * 0.17, 1], [s * 0.17, -1]]) {
+      const tail = x + s * (dir > 0 ? 0.18 : 0.82), tip = x + s * (dir > 0 ? 0.82 : 0.18);
+      ctx.beginPath();
+      ctx.moveTo(tail, cy + dy);
+      ctx.lineTo(tip - dir * s * 0.18, cy + dy);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(tip, cy + dy);
+      ctx.lineTo(tip - dir * s * 0.24, cy + dy - s * 0.15);
+      ctx.lineTo(tip - dir * s * 0.24, cy + dy + s * 0.15);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function cardRect(i) {
+    return { x: CARD.x, y: CARD.y + i * (CARD.h + CARD.gapY), w: CARD.w, h: CARD.h };
+  }
+
+  // 캘리브레이션 프리셋 (영상 px): 판의 칸 영역, 카드의 조각 영역(라벨·버튼 제외)
+  function preset() {
+    return {
+      board: { x: BOARD.x, y: BOARD.y, w: BOARD.cell * COLS, h: BOARD.cell * ROWS },
+      hand: [0, 1, 2].map(i => {
+        const c = cardRect(i);
+        return { x: c.x + CARD.pad, y: c.y + CARD.pad, w: c.w - CARD.pad * 2, h: c.h - CARD.pad - CARD.labelH };
+      }),
+    };
+  }
+
+  // 미리보기 칸: 판 안이면 빈칸 위는 초록, 찬 칸 위는 X. 하나라도 판 밖이면 전부 X.
+  function previewCells(st) {
+    const p = st.hand.find(Boolean);
+    if (!p) return null;
+    const cells = p.cells.map(([r, c]) => [r + opts.previewAt.r, c + opts.previewAt.c]);
+    const inside = cells.every(([r, c]) => r >= 0 && r < ROWS && c >= 0 && c < COLS);
+    return { cells: cells.filter(([r, c]) => r >= 0 && r < ROWS && c >= 0 && c < COLS), inside };
+  }
+
+  function render(st, { forceEmpty = false } = {}) {
+    const t = performance.now() / 1000;
+    const grd = ctx.createLinearGradient(0, 0, 0, H);
+    grd.addColorStop(0, '#2B2148');
+    grd.addColorStop(1, '#151027');
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#F6E9C8';
+    ctx.font = '700 30px sans-serif';
+    ctx.fillText('한글 모아모아 (가상 화면)', 452, 70);
+    ctx.font = '16px sans-serif';
+    ctx.fillStyle = '#E8DDF8';
+    ctx.fillText(`제거한 줄 수 ${st.clearedLines}`, 452, 110);
+    ctx.fillText(`다음 능력 획득까지 ${st.abilities.untilNext}`, 600, 110);
+
+    const s = BOARD.cell;
+    ctx.fillStyle = '#0F4C50';
+    ctx.fillRect(BOARD.x - 8, BOARD.y - 8, COLS * s + 16, ROWS * s + 16);
+    const board = forceEmpty ? new Array(ROWS).fill(0) : st.board;
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const x = BOARD.x + c * s, y = BOARD.y + r * s;
+        if ((board[r] >> c) & 1) block(x, y, s, colorAt(r, c)); else emptyCell(x, y, s);
+        if (forceEmpty) continue;
+        const a = 0.8 + 0.2 * Math.sin(t * 4 + r + c);
+        if ((st.items.dot[r] >> c) & 1) dotIcon(x, y, s, a);
+        if ((st.items.swap[r] >> c) & 1) swapIcon(x, y, s, a);
+      }
+    }
+
+    if (opts.preview && !forceEmpty) {
+      const pv = previewCells(st);
+      if (pv) {
+        const bits = new Array(ROWS).fill(0);
+        for (const [r, c] of pv.cells) bits[r] |= 1 << c;
+        // 미리보기로 줄이 완성되면 그 행을 연한 초록 광택 띠로 덮는다
+        if (pv.inside) {
+          for (let r = 0; r < ROWS; r++) {
+            if (!bits[r] || (board[r] | bits[r]) !== FULL || board[r] & bits[r]) continue;
+            for (let c = 0; c < COLS; c++) {
+              if ((bits[r] >> c) & 1) continue;
+              const x = BOARD.x + c * s, y = BOARD.y + r * s;
+              ctx.fillStyle = rgb(C.forecast);
+              ctx.fillRect(x, y, s, s);
+              ctx.fillStyle = 'rgb(176,250,196)';
+              ctx.fillRect(x, y, s, Math.round(s * 0.34));
+            }
+            ctx.strokeStyle = 'rgb(40,200,190)';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(BOARD.x + 1, BOARD.y + r * s + 1, COLS * s - 2, s - 2);
+          }
+        }
+        for (const [r, c] of pv.cells) {
+          const x = BOARD.x + c * s, y = BOARD.y + r * s;
+          const isX = !pv.inside || ((board[r] >> c) & 1);
+          ctx.fillStyle = rgb(isX ? C.x : C.green);
+          ctx.fillRect(x, y, s, s);
+          if (isX) {
+            ctx.strokeStyle = 'rgb(232,124,98)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(x + 6, y + 6); ctx.lineTo(x + s - 6, y + s - 6);
+            ctx.moveTo(x + s - 6, y + 6); ctx.lineTo(x + 6, y + s - 6);
+            ctx.stroke();
+          }
+        }
+      }
+    }
+
+    if (opts.cursor && !forceEmpty) {
+      // 손 모양 커서: 빈칸의 광택 위치를 흰 픽셀로 가린다
+      const x = BOARD.x + 6 * s + 3, y = BOARD.y + 9 * s + 3;
+      ctx.fillStyle = '#fff';
+      ctx.strokeStyle = '#222';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(x, y, 8, 11, 3);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    st.hand.forEach((p, i) => {
+      const cr = cardRect(i);
+      ctx.fillStyle = opts.selected && i === 0 ? 'rgb(255,226,110)' : 'rgb(250,243,228)';
+      ctx.beginPath();
+      ctx.roundRect(cr.x, cr.y, cr.w, cr.h, 12);
+      ctx.fill();
+      if (!p) return;
+      const { h, w } = pieces.bbox(p.cells);
+      const area = { w: cr.w - CARD.pad * 2, h: cr.h - CARD.pad - CARD.labelH };
+      const cs = Math.min(SCALES[i], Math.floor(area.w / w), Math.floor(area.h / h));
+      const ox = cr.x + CARD.pad + Math.floor((area.w - w * cs) / 2);
+      const oy = cr.y + CARD.pad + Math.floor((area.h - h * cs) / 2);
+      for (const [r, c] of p.cells) block(ox + c * cs, oy + r * cs, cs, PALETTE[(i * 2 + 1) % PALETTE.length]);
+      ctx.fillStyle = '#5A4A3A';
+      ctx.font = '600 14px sans-serif';
+      ctx.fillText(`${p.name || ''} ${p.cells.length}칸`, cr.x + 12, cr.y + cr.h - 10);
+      for (const k of [0, 1]) {
+        ctx.fillStyle = k ? 'rgb(120,170,240)' : 'rgb(240,170,90)';
+        ctx.beginPath();
+        ctx.arc(cr.x + cr.w - 18 - k * 26, cr.y + cr.h - 15, 10, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+
+    out.filter = opts.blur ? 'blur(0.6px)' : 'none';
+    out.drawImage(scratch, 0, 0);
+    out.filter = 'none';
+  }
+
+  return { canvas, W, H, opts, render, preset };
+})();
+
+/* ================================================================
+ * capture — 화면 공유 시작·중지, 프레임 루프, 영역 읽기, 검은 화면 감지
+ * ================================================================ */
+const capture = (() => {
+  let kind = null;          // 'display' | 'fake' | null
+  let video = null, stream = null;
+  let timer = null, onFrame = null, onEnd = null, renderFake = null;
+  let last = 0;
+  const FRAME_MS = 110;     // 처리 주기 (약 9fps)
+
+  const grabCanvas = document.createElement('canvas');
+  const gctx = grabCanvas.getContext('2d', { willReadFrequently: true });
+  const tiny = document.createElement('canvas');
+  tiny.width = 32;
+  tiny.height = 18;
+  const tctx = tiny.getContext('2d', { willReadFrequently: true });
+
+  const image = () => (kind === 'display' ? video : kind === 'fake' ? fakeScreen.canvas : null);
+  function size() {
+    if (kind === 'display' && video) return { w: video.videoWidth, h: video.videoHeight };
+    if (kind === 'fake') return { w: fakeScreen.W, h: fakeScreen.H };
+    return { w: 0, h: 0 };
+  }
+
+  // 영상 px 사각형 하나를 읽어 { data, width, height, x0, y0 }로 돌려준다
+  function grab(rect) {
+    const { w: vw, h: vh } = size();
+    const x = Math.max(0, Math.floor(rect.x)), y = Math.max(0, Math.floor(rect.y));
+    const w = Math.max(1, Math.min(vw - x, Math.ceil(rect.x + rect.w) - x));
+    const h = Math.max(1, Math.min(vh - y, Math.ceil(rect.y + rect.h) - y));
+    if (grabCanvas.width !== w || grabCanvas.height !== h) { grabCanvas.width = w; grabCanvas.height = h; }
+    gctx.drawImage(image(), x, y, w, h, 0, 0, w, h);
+    return { data: gctx.getImageData(0, 0, w, h).data, width: w, height: h, x0: x, y0: y };
+  }
+
+  function meanLuma() {
+    const img = image();
+    if (!img) return 0;
+    tctx.drawImage(img, 0, 0, 32, 18);
+    const d = tctx.getImageData(0, 0, 32, 18).data;
+    let s = 0;
+    for (let i = 0; i < d.length; i += 4) s += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    return s / (d.length / 4);
+  }
+
+  function tick() {
+    const t = performance.now();
+    if (t - last < FRAME_MS) return;
+    last = t;
+    if (kind === 'fake') renderFake?.();
+    if (size().w) onFrame?.();
+  }
+
+  function startLoop() {
+    if (kind === 'display' && 'requestVideoFrameCallback' in HTMLVideoElement.prototype) {
+      const v = video;
+      const cb = () => { if (video !== v) return; tick(); v.requestVideoFrameCallback(cb); };
+      v.requestVideoFrameCallback(cb);
+      // 화면이 멈춰 있으면 새 프레임이 오지 않으므로 느린 보조 루프도 둔다
+      timer = setInterval(tick, 500);
+    } else {
+      timer = setInterval(tick, FRAME_MS);
+    }
+  }
+
+  async function startDisplay(handlers) {
+    if (!navigator.mediaDevices?.getDisplayMedia) throw new Error('이 브라우저는 화면 공유를 지원하지 않습니다. localhost나 HTTPS 주소로 여세요.');
+    const s = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    stop();
+    stream = s;
+    video = document.createElement('video');
+    video.muted = true;
+    video.playsInline = true;
+    video.srcObject = stream;
+    await video.play();
+    kind = 'display';
+    ({ onFrame, onEnd } = handlers);
+    stream.getVideoTracks()[0].addEventListener('ended', () => stop(true));
+    startLoop();
+  }
+
+  function startFake(handlers, render) {
+    stop();
+    kind = 'fake';
+    renderFake = render;
+    ({ onFrame, onEnd } = handlers);
+    renderFake();
+    startLoop();
+  }
+
+  function stop(notify = false) {
+    clearInterval(timer);
+    timer = null;
+    if (stream) for (const t of stream.getTracks()) t.stop();
+    stream = null;
+    video = null;
+    const was = kind;
+    kind = null;
+    renderFake = null;
+    if (was && notify) onEnd?.();
+  }
+
+  return { startDisplay, startFake, stop, grab, meanLuma, image, size, get kind() { return kind; } };
+})();
+
+/* ================================================================
+ * recognize — 프레임 영역(ImageData)에서 판·손패·아이콘을 읽는 순수 함수
+ * ================================================================ */
+const recognize = (() => {
+  const ROWS = 16, COLS = 10;
+
+  // 영상 px 사각형의 평균 RGB. img는 capture.grab 결과 (x0, y0 기준)
+  function patchMean(img, x, y, w, h) {
+    const x0 = Math.max(0, Math.round(x - img.x0)), y0 = Math.max(0, Math.round(y - img.y0));
+    const x1 = Math.min(img.width, Math.max(x0 + 1, Math.round(x - img.x0 + w)));
+    const y1 = Math.min(img.height, Math.max(y0 + 1, Math.round(y - img.y0 + h)));
+    let r = 0, g = 0, b = 0, n = 0;
+    const d = img.data;
+    for (let yy = y0; yy < y1; yy++) {
+      for (let xx = x0; xx < x1; xx++) {
+        const i = (yy * img.width + xx) * 4;
+        r += d[i]; g += d[i + 1]; b += d[i + 2];
+        n++;
+      }
+    }
+    return n ? [r / n, g / n, b / n] : [0, 0, 0];
+  }
+
+  // 칸 중앙 40% 정사각형 평균 (영상 압축 번짐을 피함)
+  function cellCenter(img, board, r, c) {
+    const cw = board.w / COLS, ch = board.h / ROWS;
+    return patchMean(img, board.x + (c + 0.3) * cw, board.y + (r + 0.3) * ch, cw * 0.4, ch * 0.4);
+  }
+
+  // 빈 판 기준색: 160칸 × RGB = 480개 (행 우선)
+  function cellMeans(img, board) {
+    const out = [];
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) out.push(...cellCenter(img, board, r, c).map(v => Math.round(v * 10) / 10));
+    return out;
+  }
+
+  const luma = c => 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
+  const rgbDist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+
+  function rgb2lab([r, g, b]) {
+    const lin = v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+    const R = lin(r), G = lin(g), B = lin(b);
+    const x = (0.4124 * R + 0.3576 * G + 0.1805 * B) / 0.95047;
+    const y = 0.2126 * R + 0.7152 * G + 0.0722 * B;
+    const z = (0.0193 * R + 0.1192 * G + 0.9505 * B) / 1.08883;
+    const f = t => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+    const fx = f(x), fy = f(y), fz = f(z);
+    return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+  }
+  const deltaE = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+
+  function baselineLab(baseline) {
+    const out = [];
+    for (let i = 0; i < ROWS * COLS; i++) out.push(rgb2lab(baseline.slice(i * 3, i * 3 + 3)));
+    return out;
+  }
+
+  // 칸 하나: 기준색 색차 d, 광택 g(좌상단 패치 밝기 − 중앙 밝기), 분류
+  // cls: fill · empty · unsure(두 신호가 엇갈림) · pg(미리보기 초록) · px(미리보기 X) · fc(클리어 예고 색)
+  function readCell(img, board, r, c, baseLab, opt) {
+    const cw = board.w / COLS, ch = board.h / ROWS;
+    const x = board.x + c * cw, y = board.y + r * ch;
+    const center = patchMean(img, x + 0.3 * cw, y + 0.3 * ch, 0.4 * cw, 0.4 * ch);
+    const pw = Math.max(2, opt.glossSize * cw), ph = Math.max(2, opt.glossSize * ch);
+    const gloss = patchMean(img, x + opt.glossPos * cw - pw / 2, y + opt.glossPos * ch - ph / 2, pw, ph);
+    const g = luma(gloss) - luma(center);
+    const d = deltaE(rgb2lab(center), baseLab[r * COLS + c]);
+    let cls;
+    if (Math.abs(g) < 20 && rgbDist(center, opt.colors.green) < opt.previewTol) cls = 'pg';
+    else if (Math.abs(g) < 20 && rgbDist(center, opt.colors.x) < opt.previewTol) cls = 'px';
+    else if (rgbDist(center, opt.colors.forecast) < opt.previewTol) cls = 'fc';
+    else {
+      const f1 = d > opt.tFill, f2 = g > opt.tGloss;
+      cls = f1 && f2 ? 'fill' : !f1 && !f2 ? 'empty' : 'unsure';
+    }
+    return { cls, d, g, rgb: center };
+  }
+
+  function readBoard(img, board, baseLab, opt) {
+    const cells = [];
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) cells.push(readCell(img, board, r, c, baseLab, opt));
+    // 예고 행: 미리보기 칸을 뺀 모든 칸이 예고 색
+    const forecastRows = [];
+    for (let r = 0; r < ROWS; r++) {
+      const rest = cells.slice(r * COLS, r * COLS + COLS).filter(x => x.cls !== 'pg' && x.cls !== 'px');
+      if (rest.length && rest.every(x => x.cls === 'fc')) forecastRows.push(r);
+    }
+    const pv = cells.filter(x => x.cls === 'pg' || x.cls === 'px');
+    return { cells, forecastRows, preview: pv.length > 0, allX: pv.length > 0 && pv.every(x => x.cls === 'px') };
+  }
+
+  // 미리보기·예고·불확실 칸은 직전 확정 상태를 쓴다. 미리보기 규칙에 어긋나는 칸 수(issues)도 센다.
+  function mergeBoard(read, prev) {
+    const board = new Array(ROWS).fill(0);
+    let unknown = 0, issues = 0;
+    const fc = new Set(read.forecastRows);
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const { cls } = read.cells[r * COLS + c];
+        const was = prev ? (prev[r] >> c) & 1 : null;
+        let v;
+        if (cls === 'fill' && !fc.has(r)) v = 1;
+        else if (cls === 'empty' && !fc.has(r)) v = 0;
+        else {
+          if (was === null) unknown++;
+          v = was ?? 0;
+          if (was !== null) {
+            if (cls === 'pg' && was) issues++;
+            else if (cls === 'px' && !read.allX && !was) issues++;
+            else if (fc.has(r) && cls === 'fc' && !was) issues++;
+          }
+        }
+        if (v) board[r] |= 1 << c;
+      }
+    }
+    return { board, unknown, issues };
+  }
+
+  /* 손패 카드: 배경과 먼 픽셀을 조각으로 보고 외접 사각형에서 칸 크기를 추정한다 */
+  function readCard(img, rect) {
+    const x0 = Math.round(rect.x - img.x0), y0 = Math.round(rect.y - img.y0);
+    const w = Math.round(rect.w), h = Math.round(rect.h);
+    if (w < 8 || h < 8) return null;
+    const d = img.data, W = img.width;
+    const px = (x, y) => { const i = ((y0 + y) * W + (x0 + x)) * 4; return [d[i], d[i + 1], d[i + 2]]; };
+    // 선택된 카드는 배경이 노랗게 바뀌므로 매 프레임 네 모서리에서 배경색을 다시 잰다
+    const corners = [[1, 1], [w - 4, 1], [1, h - 4], [w - 4, h - 4]].map(([cx, cy]) => {
+      let s = [0, 0, 0];
+      for (let yy = 0; yy < 3; yy++) for (let xx = 0; xx < 3; xx++) { const p = px(cx + xx, cy + yy); s = s.map((v, k) => v + p[k]); }
+      return s.map(v => v / 9);
+    });
+    const bg = [0, 1, 2].map(k => corners.reduce((a, c) => a + c[k], 0) / 4);
+    const mask = new Uint8Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (rgbDist(px(x, y), bg) > 60) mask[y * w + x] = 1;
+    // 잡티를 빼고(이웃 8칸 중 4칸 이상이 전경) 외접 사각형을 구한다
+    let bx0 = w, by0 = h, bx1 = -1, by1 = -1, count = 0;
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        if (!mask[y * w + x]) continue;
+        let nb = 0;
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) nb += mask[(y + dy) * w + x + dx];
+        if (nb < 5) continue;
+        count++;
+        if (x < bx0) bx0 = x; if (x > bx1) bx1 = x;
+        if (y < by0) by0 = y; if (y > by1) by1 = y;
+      }
+    }
+    if (count < 20) return null;
+    const bw = bx1 - bx0 + 1, bh = by1 - by0 + 1;
+    const frac = (fx, fy, fw, fh) => {
+      let n = 0, on = 0;
+      for (let y = Math.round(fy); y < Math.round(fy + fh); y++) for (let x = Math.round(fx); x < Math.round(fx + fw); x++) { n++; on += mask[y * w + x] || 0; }
+      return n ? on / n : 0;
+    };
+    const lumAt = (fx, fy, fw, fh) => {
+      let n = 0, s = 0;
+      for (let y = Math.round(fy); y < Math.max(Math.round(fy) + 1, Math.round(fy + fh)); y++) {
+        for (let x = Math.round(fx); x < Math.max(Math.round(fx) + 1, Math.round(fx + fw)); x++) { n++; s += luma(px(x, y)); }
+      }
+      return n ? s / n : 0;
+    };
+    let best = null;
+    for (let R = 1; R <= 6; R++) {
+      for (let C = 1; C <= 6; C++) {
+        const cw = bw / C, ch = bh / R;
+        if (cw < 4 || ch < 4 || Math.abs(cw - ch) / Math.max(cw, ch) > 0.15) continue;
+        const cells = [];
+        let sharp = 0, gloss = 0;
+        const rowsHas = new Array(R).fill(false), colsHas = new Array(C).fill(false);
+        for (let r = 0; r < R; r++) {
+          for (let c = 0; c < C; c++) {
+            const cx = bx0 + c * cw, cy = by0 + r * ch;
+            const f = frac(cx + 0.3 * cw, cy + 0.3 * ch, 0.4 * cw, 0.4 * ch);
+            sharp += Math.abs(f - 0.5) * 2;
+            if (f <= 0.5) continue;
+            cells.push([r, c]);
+            rowsHas[r] = colsHas[c] = true;
+            const gs = Math.max(1, 0.12 * cw);
+            const g = lumAt(cx + 0.2 * cw - gs / 2, cy + 0.2 * ch - gs / 2, gs, gs) - lumAt(cx + 0.3 * cw, cy + 0.3 * ch, 0.4 * cw, 0.4 * ch);
+            gloss += Math.max(0, Math.min(1, g / 40));
+          }
+        }
+        if (!cells.length || !rowsHas.every(Boolean) || !colsHas.every(Boolean)) continue;
+        const score = sharp / (R * C) + gloss / cells.length;
+        if (!best || score > best.score + 1e-9) best = { cells, R, C, score };
+      }
+    }
+    return best;
+  }
+
+  /* 능력 아이콘: 등록할 때 아이콘 색(칸의 바탕과 가장 다른 색)과 그 색이 만드는 모양(14×14 마스크)을 저장한다.
+     칸마다 같은 색 픽셀의 모양을 템플릿 마스크와 정규화 상관값으로 비교한다. 색은 모양을 뽑는 데만 쓰고 판정은 모양으로 한다. */
+  const TPL = 16;
+  const ICON_TOL = 70;
+
+  // 칸 안쪽 14×14 표본 (바깥 테두리 한 줄은 뺀다: 조각 테두리 색이 아이콘 색과 닮을 수 있음)
+  function cellSamples(img, board, r, c) {
+    const cw = board.w / COLS, ch = board.h / ROWS;
+    const out = [];
+    for (let i = 1; i < TPL - 1; i++) {
+      for (let j = 1; j < TPL - 1; j++) {
+        out.push(patchMean(img, board.x + (c + j / TPL) * cw, board.y + (r + i / TPL) * ch, cw / TPL, ch / TPL));
+      }
+    }
+    return out;
+  }
+  const IN = TPL - 2;
+
+  function iconTemplate(img, board, r, c) {
+    const smp = cellSamples(img, board, r, c);
+    const med = [0, 1, 2].map(k => smp.map(p => p[k]).sort((a, b) => a - b)[smp.length >> 1]);
+    // 좌상단 광택 자리는 빼고, 바탕(중앙값)과 가장 다른 픽셀들의 평균을 아이콘 색으로 본다
+    const far = smp
+      .filter((p, k) => !(Math.floor(k / IN) < 4 && k % IN < 4) && luma(p) < 225)
+      .map(p => ({ p, d: rgbDist(p, med) }))
+      .filter(x => x.d > 40)
+      .sort((a, b) => b.d - a.d);
+    if (far.length < 6) return null;
+    const top = far.slice(0, Math.max(6, Math.ceil(far.length * 0.4)));
+    const color = [0, 1, 2].map(k => Math.round(top.reduce((a, x) => a + x.p[k], 0) / top.length));
+    // 허용 오차는 아이콘 색과 바탕의 거리의 절반 (청록 바탕과 파란 아이콘처럼 가까운 색도 가르도록)
+    const tol = Math.round(Math.min(ICON_TOL, rgbDist(color, med) / 2));
+    const mask = smp.map(p => (rgbDist(p, color) < tol ? 1 : 0));
+    const n = mask.reduce((a, x) => a + x, 0);
+    if (n < 4 || n > mask.length * 0.8) return null;
+    return { color, tol, mask };
+  }
+
+  function maskNcc(a, b) {
+    const n = a.length;
+    let ma = 0, mb = 0;
+    for (let k = 0; k < n; k++) { ma += a[k]; mb += b[k]; }
+    ma /= n; mb /= n;
+    let s = 0, va = 0, vb = 0;
+    for (let k = 0; k < n; k++) { const x = a[k] - ma, y = b[k] - mb; s += x * y; va += x * x; vb += y * y; }
+    return va && vb ? s / Math.sqrt(va * vb) : 0;
+  }
+
+  const validTemplate = t => t && Array.isArray(t.color) && Array.isArray(t.mask) && t.mask.length === IN * IN;
+
+  function readIcons(img, board, allTemplates, thr) {
+    // 형식이 다른(예전 버전) 템플릿은 버린다
+    const templates = { dot: allTemplates.dot.filter(validTemplate), swap: allTemplates.swap.filter(validTemplate) };
+    if (!templates.dot.length && !templates.swap.length) return null;
+    const dot = new Array(ROWS).fill(0), swap = new Array(ROWS).fill(0);
+    const scores = [];
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const smp = cellSamples(img, board, r, c);
+        const score = list => list.reduce((best, t) => {
+          const m = smp.map(p => (rgbDist(p, t.color) < (t.tol || ICON_TOL) ? 1 : 0));
+          const need = 0.3 * t.mask.reduce((a, x) => a + x, 0);
+          return m.reduce((a, x) => a + x, 0) < need ? best : Math.max(best, maskNcc(m, t.mask));
+        }, 0);
+        const sd = score(templates.dot), ss = score(templates.swap);
+        scores.push({ i: r * COLS + c, sd, ss });
+        if (Math.max(sd, ss) < thr) continue;
+        if (sd >= ss) dot[r] |= 1 << c; else swap[r] |= 1 << c;
+      }
+    }
+    return { dot, swap, scores };
+  }
+
+  return { patchMean, cellCenter, cellMeans, rgb2lab, deltaE, baselineLab, readCell, readBoard, mergeBoard, readCard, iconTemplate, readIcons };
 })();
 
 /* ================================================================
@@ -1437,17 +2132,32 @@ const ui = (() => {
     return d;
   }
 
-  // 지금 화면에 보이는 게임 상태 (데모 모드에서는 손으로 넣은 상태)
-  const cur = () => demo;
+  // 지금 화면에 보이는 게임 상태. 데모는 손으로 넣은 상태, 화면 공유는 인식으로 확정한 상태.
+  let mode = 'demo';
+  let live;
+  const cur = () => (mode === 'demo' ? demo : live);
 
-  function demoChanged() {
-    saveDemo();
-    renderDemo();
+  // 화면 공유 상태: 판·아이콘·손패는 인식이 채우고, 능력 개수와 제거한 줄 수는 손으로 넣고 저장한다.
+  function emptyLive() {
+    const d = emptyDemo();
+    const saved = storage.load(storage.KEYS.live);
+    d.abilities.dot = toInt(saved?.abilities?.dot, 99);
+    d.abilities.swap = toInt(saved?.abilities?.swap, 99);
+    d.abilities.untilNext = toInt(saved?.abilities?.untilNext, 99);
+    d.clearedLines = toInt(saved?.clearedLines, 9999);
+    return d;
+  }
+  const saveLive = debounce(() => persist(storage.KEYS.live, { abilities: live.abilities, clearedLines: live.clearedLines }), 250);
+  addEventListener('pagehide', () => saveLive.flush());
+
+  function stateChanged() {
+    if (mode === 'demo') saveDemo(); else saveLive();
+    renderState();
     requestSolve();
   }
 
-  function renderDemo() {
-    renderBoard();
+  function renderState() {
+    if (mode === 'demo') renderBoard(); else renderMirror();
     renderHand();
     renderAbilities();
     renderDebug();
@@ -1466,7 +2176,7 @@ const ui = (() => {
       const key = core.canonicalKey(p.cells);
       if (keys.has(key)) continue;
       keys.add(key);
-      list.push({ key, name: p.name || '', cells: p.cells, seen: e.seen && typeof e.seen === 'object' ? e.seen : {} });
+      list.push({ key, name: p.name || '', cells: p.cells, seen: e.seen && typeof e.seen === 'object' ? e.seen : {}, ...(e.unsure ? { unsure: true } : {}) });
     }
     return { version: 1, pieces: list };
   }
@@ -1477,7 +2187,7 @@ const ui = (() => {
     return dict.pieces.find(e => e.key === key) ?? null;
   };
 
-  function dictUpsert(cells, name) {
+  function dictUpsert(cells, name, confirmed = false) {
     const n = pieces.normalize(cells);
     const key = core.canonicalKey(n);
     let e = dict.pieces.find(x => x.key === key);
@@ -1487,6 +2197,7 @@ const ui = (() => {
     } else if (name) {
       e.name = name;
     }
+    if (confirmed) delete e.unsure;
     persist(storage.KEYS.dict, dict);
     return e;
   }
@@ -1522,25 +2233,45 @@ const ui = (() => {
 
   function solveNow() {
     const st = cur();
+    if (mode === 'live' && !liveReady()) {
+      reco.results = [];
+      reco.notes = [];
+      renderReco();
+      updateStatus();
+      return;
+    }
     reco.pending = true;
     reco.error = null;
-    setStatus('계산 중', 'busy');
+    updateStatus();
     renderReco();
+    const m0 = mode;
     solver.solve(solverInput(st), m => {
-      if (m.type === 'error') { reco.error = m.message; return; }
+      if (m0 !== mode) return;
       reco.results = m.results || [];
       reco.notes = m.notes || [];
       reco.stats = m.stats;
       reco.done = !!m.done;
       if (reco.sel >= reco.results.length) reco.sel = 0;
-      if (m.done) {
-        reco.pending = false;
-        setStatus(reco.results.length ? '추천 표시' : '데모 모드', reco.results.length ? 'ok' : '');
-      }
+      if (m.done) reco.pending = false;
+      updateStatus();
       renderReco();
-      renderBoard();
+      if (mode === 'demo') renderBoard(); else renderMirror();
       renderHand();
     });
+  }
+
+  // 상태 표시: 공유 전 · 캘리브레이션 필요 · 인식 중 · 확정 대기 · 계산 중 · 추천 표시 · 보정 필요
+  function updateStatus() {
+    if (mode === 'demo') {
+      if (reco.pending) setStatus('계산 중', 'busy');
+      else setStatus(reco.results.length ? '데모 · 추천 표시' : '데모 모드', reco.results.length ? 'ok' : '');
+      return;
+    }
+    const s = liveStatus();
+    if (s) { setStatus(s.text, s.tone); return; }
+    if (reco.pending) setStatus('계산 중', 'busy');
+    else if (reco.results.length) setStatus('추천 표시', 'ok');
+    else setStatus('인식 중', 'busy');
   }
 
   /* ---------- 판 캔버스 ---------- */
@@ -1585,7 +2316,7 @@ const ui = (() => {
       }
       if ((hover ? hover.r * COLS + hover.c : -1) !== k) { hover = cell; renderBoard(); }
     });
-    const end = () => { if (drag) { drag = null; demoChanged(); } };
+    const end = () => { if (drag) { drag = null; stateChanged(); } };
     canvas.addEventListener('pointerup', end);
     canvas.addEventListener('pointercancel', end);
     canvas.addEventListener('pointerleave', () => { if (!drag && hover) { hover = null; renderBoard(); } });
@@ -1597,7 +2328,7 @@ const ui = (() => {
       const fresh = emptyDemo();
       demo.board = fresh.board;
       demo.items = fresh.items;
-      demoChanged();
+      stateChanged();
     });
   }
 
@@ -1683,15 +2414,17 @@ const ui = (() => {
 
   const CIRCLED = ['①', '②', '③', '④', '⑤', '⑥'];
 
-  // 추천 시퀀스를 판 위에 덧그린다. cellRect(r, c) → {x, y, s}로 좌표계를 받는다.
+  // 추천 시퀀스를 판 위에 덧그린다. cellRect(r, c) → {x, y, s, w?, h?}로 좌표계를 받는다 (s = 글자 크기 기준).
   function drawRecoOverlay(g, cellRect, result) {
     if (!result) return;
+    const cell = (r, c) => { const o = cellRect(r, c); return { ...o, w: o.w ?? o.s, h: o.h ?? o.s }; };
+    const font = getComputedStyle(document.body).fontFamily;
     result.steps.forEach((st, i) => {
       const nowStep = i === 0;
       for (const [r, c] of st.cells) {
-        const { x, y, s } = cellRect(r, c);
+        const { x, y, s, w, h } = cell(r, c);
         g.beginPath();
-        g.roundRect(x + 2, y + 2, s - 4, s - 4, s * 0.16);
+        g.roundRect(x + 2, y + 2, w - 4, h - 4, s * 0.16);
         g.fillStyle = nowStep ? COLORS.now : COLORS.next;
         g.fill();
         g.lineWidth = nowStep ? 2.5 : 1.5;
@@ -1699,50 +2432,50 @@ const ui = (() => {
         g.stroke();
       }
       if (st.action.type === 'dot' && st.cells.length) {
-        const { x, y, s } = cellRect(...st.cells[0]);
+        const { x, y, s, w, h } = cell(...st.cells[0]);
         g.beginPath();
-        g.arc(x + s / 2, y + s / 2, s * 0.18, 0, Math.PI * 2);
+        g.arc(x + w / 2, y + h / 2, s * 0.18, 0, Math.PI * 2);
         g.fillStyle = COLORS.dot;
         g.fill();
       }
       if (st.cells.length) {
         const [r0, c0] = st.cells.reduce((a, b) => (b[0] < a[0] || (b[0] === a[0] && b[1] < a[1]) ? b : a));
-        const { x, y, s } = cellRect(r0, c0);
-        g.font = `700 ${Math.round(s * 0.5)}px ${getComputedStyle(document.body).fontFamily}`;
+        const { x, y, s, w, h } = cell(r0, c0);
+        const label = CIRCLED[i] ?? String(i + 1);
+        g.font = `700 ${Math.round(s * 0.5)}px ${font}`;
         g.textAlign = 'center';
         g.textBaseline = 'middle';
         g.lineWidth = 3;
         g.strokeStyle = 'rgba(0,0,0,.65)';
-        g.strokeText(CIRCLED[i] ?? String(i + 1), x + s / 2, y + s / 2 + 1);
+        g.strokeText(label, x + w / 2, y + h / 2 + 1);
         g.fillStyle = '#fff';
-        g.fillText(CIRCLED[i] ?? String(i + 1), x + s / 2, y + s / 2 + 1);
+        g.fillText(label, x + w / 2, y + h / 2 + 1);
       }
       for (const r of st.clearedRows) {
-        const a = cellRect(r, 0), b = cellRect(r, COLS - 1);
+        const a = cell(r, 0), b = cell(r, COLS - 1);
         g.lineWidth = 2.5;
         g.strokeStyle = nowStep ? COLORS.full : COLORS.nextEdge;
         g.setLineDash(nowStep ? [] : [5, 4]);
         g.beginPath();
-        g.roundRect(a.x, a.y + 1, b.x + b.s - a.x, a.s - 2, 4);
+        g.roundRect(a.x, a.y + 1, b.x + b.w - a.x, a.h - 2, 4);
         g.stroke();
         g.setLineDash([]);
       }
       if (st.lines) {
-        const r = st.clearedRows[0];
-        const a = cellRect(r, 0), b = cellRect(r, COLS - 1);
+        const a = cell(st.clearedRows[0], 0), b = cell(st.clearedRows[0], COLS - 1);
         const gotText = [st.gotDot ? '+점 찍기' : '', st.gotSwap ? '+바꿔 뽑기' : ''].filter(Boolean).join(' ');
         const label = `${CIRCLED[i] ?? i + 1} ${st.lines}줄 +${fmt(st.lineScore)}${gotText ? ' ' + gotText : ''}`;
-        g.font = `700 ${Math.round(a.s * 0.42)}px ${getComputedStyle(document.body).fontFamily}`;
+        g.font = `700 ${Math.round(a.s * 0.42)}px ${font}`;
         const tw = g.measureText(label).width + 10;
-        const lx = (a.x + b.x + b.s) / 2 - tw / 2, ly = a.y - a.s * 0.62;
+        const lx = (a.x + b.x + b.w) / 2 - tw / 2, ly = Math.max(0, a.y - a.s * 0.62);
         g.fillStyle = 'rgba(18,20,26,.88)';
         g.beginPath();
-        g.roundRect(lx, Math.max(0, ly), tw, a.s * 0.58, 5);
+        g.roundRect(lx, ly, tw, a.s * 0.58, 5);
         g.fill();
         g.fillStyle = nowStep ? COLORS.full : '#fff';
         g.textAlign = 'center';
         g.textBaseline = 'middle';
-        g.fillText(label, lx + tw / 2, Math.max(0, ly) + a.s * 0.3);
+        g.fillText(label, lx + tw / 2, ly + a.s * 0.3);
       }
     });
   }
@@ -1814,6 +2547,723 @@ const ui = (() => {
     for (const btn of document.querySelectorAll('#tools .tool')) {
       btn.setAttribute('aria-checked', String(btn.dataset.tool === tool));
     }
+  }
+
+  /* ---------- 화면 공유: 미러 ---------- */
+
+  const CAL_STEPS = ['board', 'hand0', 'hand1', 'hand2', 'baseline'];
+  const calib = { active: false, step: 0, rects: null, baseline: null, zoom: false, drag: null };
+  const view = { x: 0, y: 0, w: 16, h: 9 };
+  let mirror, mctx, mdpr = 1;
+  const mcss = { w: 0, h: 0 };
+  let gridUntil = 0, blackSince = 0, heatOn = false;
+
+  const ratioToPx = (r, sz) => r && { x: r.x * sz.w, y: r.y * sz.h, w: r.w * sz.w, h: r.h * sz.h };
+  const pxToRatio = (r, sz) => ({ x: r.x / sz.w, y: r.y / sz.h, w: r.w / sz.w, h: r.h / sz.h });
+  const isCalibrated = () => !!(settings.boardRect && settings.handRects.every(Boolean) && Array.isArray(settings.baseline) && settings.baseline.length === ROWS * COLS * 3);
+  const liveReady = () => !!capture.kind && isCalibrated() && !calib.active;
+
+  function rectsPx() {
+    const sz = capture.size();
+    if (!sz.w) return { board: null, hand: [null, null, null] };
+    return { board: ratioToPx(settings.boardRect, sz), hand: settings.handRects.map(r => ratioToPx(r, sz)) };
+  }
+
+  function unionRect(rs) {
+    const list = rs.filter(Boolean);
+    if (!list.length) return null;
+    const x0 = Math.min(...list.map(r => r.x)), y0 = Math.min(...list.map(r => r.y));
+    const x1 = Math.max(...list.map(r => r.x + r.w)), y1 = Math.max(...list.map(r => r.y + r.h));
+    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  }
+
+  function setView(r, margin = 0) {
+    const sz = capture.size();
+    if (!sz.w) return;
+    if (!r) Object.assign(view, { x: 0, y: 0, w: sz.w, h: sz.h });
+    else {
+      const m = margin * Math.max(r.w, r.h);
+      const x = Math.max(0, r.x - m), y = Math.max(0, r.y - m);
+      Object.assign(view, { x, y, w: Math.min(sz.w - x, r.w + 2 * m), h: Math.min(sz.h - y, r.h + 2 * m) });
+    }
+    fitMirror();
+  }
+
+  function defaultView() {
+    if (calib.active) {
+      const r = calib.zoom ? currentCalRect() : null;
+      setView(r, 0.35);
+      return;
+    }
+    const px = rectsPx();
+    setView(px.board ? unionRect([px.board, ...px.hand]) : null, 0.05);
+  }
+
+  function fitMirror() {
+    const wrap = $('#mirrorWrap');
+    const maxW = Math.max(200, wrap.clientWidth);
+    const maxH = Math.max(240, innerHeight * 0.72);
+    let w = maxW, h = (w * view.h) / view.w;
+    if (h > maxH) { h = maxH; w = (h * view.w) / view.h; }
+    mcss.w = Math.round(w);
+    mcss.h = Math.round(h);
+    mdpr = Math.min(2, window.devicePixelRatio || 1);
+    mirror.width = mcss.w * mdpr;
+    mirror.height = mcss.h * mdpr;
+    mirror.style.width = mcss.w + 'px';
+    mirror.style.height = mcss.h + 'px';
+  }
+
+  const kScale = () => mcss.w / view.w;
+  const toCss = (x, y) => [(x - view.x) * kScale(), (y - view.y) * kScale()];
+  function toVideo(e) {
+    const rect = mirror.getBoundingClientRect();
+    return { x: view.x + (e.clientX - rect.left) * (view.w / rect.width), y: view.y + (e.clientY - rect.top) * (view.h / rect.height) };
+  }
+  function boardCellAt(p) {
+    const b = rectsPx().board;
+    if (!b) return null;
+    const c = Math.floor((p.x - b.x) / (b.w / COLS)), r = Math.floor((p.y - b.y) / (b.h / ROWS));
+    return r >= 0 && r < ROWS && c >= 0 && c < COLS ? { r, c } : null;
+  }
+
+  function drawGrid(g, rc, color = 'rgba(79,209,197,.9)') {
+    g.strokeStyle = color;
+    g.lineWidth = 1;
+    g.beginPath();
+    for (let c = 0; c <= COLS; c++) { const x = rc.x + (rc.w * c) / COLS; g.moveTo(x, rc.y); g.lineTo(x, rc.y + rc.h); }
+    for (let r = 0; r <= ROWS; r++) { const y = rc.y + (rc.h * r) / ROWS; g.moveTo(rc.x, y); g.lineTo(rc.x + rc.w, y); }
+    g.stroke();
+  }
+
+  function labelAt(g, text, x, y, color) {
+    g.font = `600 12px ${getComputedStyle(document.body).fontFamily}`;
+    const w = g.measureText(text).width + 10;
+    g.fillStyle = 'rgba(18,20,26,.85)';
+    g.fillRect(x, Math.max(0, y - 20), w, 18);
+    g.fillStyle = color;
+    g.textAlign = 'left';
+    g.textBaseline = 'middle';
+    g.fillText(text, x + 5, Math.max(0, y - 20) + 9);
+  }
+
+  function renderMirror() {
+    if (!mirror) return;
+    const img = capture.image();
+    $('#mirrorEmpty').hidden = !!img;
+    mirror.hidden = !img;
+    if (!img || !mcss.w) return;
+    const g = mctx;
+    g.setTransform(mdpr, 0, 0, mdpr, 0, 0);
+    g.clearRect(0, 0, mcss.w, mcss.h);
+    g.drawImage(img, view.x, view.y, view.w, view.h, 0, 0, mcss.w, mcss.h);
+    const K = kScale();
+    const rectCss = r => { const [x, y] = toCss(r.x, r.y); return { x, y, w: r.w * K, h: r.h * K }; };
+
+    if (calib.active) {
+      const cur = CAL_STEPS[calib.step];
+      const { board, hand } = calib.rects;
+      if (board) {
+        const rc = rectCss(board);
+        drawGrid(g, rc, cur === 'board' || cur === 'baseline' ? 'rgba(243,201,105,.95)' : 'rgba(79,209,197,.8)');
+        labelAt(g, '판', rc.x, rc.y, '#F3C969');
+      }
+      hand.forEach((r, i) => {
+        if (!r) return;
+        const rc = rectCss(r);
+        g.strokeStyle = cur === `hand${i}` ? '#F3C969' : 'rgba(79,209,197,.9)';
+        g.lineWidth = 2;
+        g.strokeRect(rc.x, rc.y, rc.w, rc.h);
+        labelAt(g, `카드 ${i + 1}`, rc.x, rc.y, '#F3C969');
+      });
+      return;
+    }
+
+    const px = rectsPx();
+    if (!px.board) return;
+    const b = px.board, cw = b.w / COLS, ch = b.h / ROWS;
+    const cellCss = (r, c) => {
+      const [x, y] = toCss(b.x + c * cw, b.y + r * ch);
+      return { x, y, w: cw * K, h: ch * K, s: Math.min(cw, ch) * K };
+    };
+    if (heatOn) drawHeat(g, cellCss);
+    if (performance.now() < gridUntil || heatOn) drawGrid(g, rectCss(b));
+    drawRecoOverlay(g, cellCss, selectedResult());
+    drawHandBadges(g, px.hand.map(r => r && rectCss(r)));
+    if (correcting && liveHover) {
+      const c = cellCss(liveHover.r, liveHover.c);
+      g.strokeStyle = '#fff';
+      g.lineWidth = 2;
+      g.strokeRect(c.x + 1, c.y + 1, c.w - 2, c.h - 2);
+    }
+  }
+
+  function drawHandBadges(g, cards) {
+    const res = selectedResult();
+    if (!res) return;
+    res.actions.forEach((a, k) => {
+      if (a.type === 'dot') return;
+      const rc = cards[a.piece];
+      if (!rc) return;
+      if (a.type === 'swap') labelAt(g, '바꿔 뽑기', rc.x, rc.y, '#C47CF2');
+      else labelAt(g, CIRCLED[k], rc.x, rc.y, k === 0 ? '#F3C969' : '#fff');
+      if (k === 0) {
+        g.strokeStyle = a.type === 'swap' ? '#C47CF2' : '#F3C969';
+        g.lineWidth = 2.5;
+        g.strokeRect(rc.x - 3, rc.y - 3, rc.w + 6, rc.h + 6);
+      }
+    });
+  }
+
+  /* ---------- 화면 공유: 시작·중지 ---------- */
+
+  function setAlert(html, bad = false, buttons = []) {
+    const el = $('#liveAlert');
+    if (!html) { el.hidden = true; el.replaceChildren(); return; }
+    el.hidden = false;
+    el.className = 'alert' + (bad ? ' bad' : '');
+    el.innerHTML = `<span>${html}</span>`;
+    for (const [label, fn] of buttons) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn sm';
+      b.textContent = label;
+      b.addEventListener('click', fn);
+      el.append(b);
+    }
+  }
+
+  const frameHandlers = { onFrame: () => onFrame(), onEnd: () => sourceEnded() };
+
+  async function startShare() {
+    try {
+      await capture.startDisplay(frameHandlers);
+    } catch (err) {
+      if (err?.name !== 'NotAllowedError') toast(err?.message || '화면 공유를 시작하지 못했습니다.');
+      return;
+    }
+    sourceStarted();
+  }
+
+  function startFake() {
+    capture.startFake(frameHandlers, () => fakeScreen.render(demo, { forceEmpty: calib.active && CAL_STEPS[calib.step] === 'baseline' }));
+    sourceStarted();
+  }
+
+  function sourceStarted() {
+    resetRecognition();
+    blackSince = 0;
+    setAlert(null);
+    if (isCalibrated()) gridUntil = performance.now() + 4000;
+    defaultView();
+    renderLiveControls();
+    if (!isCalibrated()) toast('먼저 캘리브레이션으로 판과 손패 위치를 지정하세요.');
+    else toast('격자가 칸에 맞게 겹치는지 확인하세요. 어긋나면 캘리브레이션을 다시 하세요.');
+    updateStatus();
+  }
+
+  function stopShare() {
+    capture.stop();
+    sourceEnded();
+  }
+
+  function sourceEnded() {
+    if (calib.active) endCalib();
+    setAlert(null);
+    resetRecognition();
+    reco.results = [];
+    renderLiveControls();
+    renderMirror();
+    renderReco();
+    renderHand();
+    updateStatus();
+  }
+
+  function onFrame() {
+    if (mode !== 'live') return;
+    // 공유 화면이 계속 거의 검으면 독점 전체 화면일 수 있다
+    if (capture.meanLuma() < 8) {
+      blackSince ||= performance.now();
+      if (performance.now() - blackSince > 2000) {
+        setAlert('공유 화면이 거의 검은색입니다. 게임이 전체 화면(독점) 모드일 수 있습니다. 창 모드나 테두리 없는 창 모드로 바꿔 주세요.', true);
+      }
+    } else if (blackSince) {
+      blackSince = 0;
+      setAlert(null);
+    }
+    if (liveReady()) recognizeFrame();
+    renderMirror();
+  }
+
+  function renderLiveControls() {
+    const on = !!capture.kind;
+    const share = $('#btnShare');
+    share.textContent = capture.kind === 'display' ? '공유 중지' : '화면 공유 시작';
+    share.classList.toggle('primary', capture.kind !== 'display');
+    $('#btnFake').textContent = capture.kind === 'fake' ? '가상 화면 끄기' : '가상 화면';
+    $('#btnCalib').disabled = !on || calib.active;
+    $('#btnCorrect').disabled = !on || !isCalibrated() || calib.active;
+    $('#btnHeat').disabled = !on || !isCalibrated() || calib.active;
+    $('#btnCorrect').setAttribute('aria-pressed', String(correcting));
+    $('#btnHeat').setAttribute('aria-pressed', String(heatOn));
+    $('#correctTools').hidden = !correcting || calib.active;
+    $('#fakeOpts').hidden = capture.kind !== 'fake';
+    $('#mirrorWrap').classList.toggle('correcting', correcting);
+    $('#mirrorWrap').classList.toggle('calibrating', calib.active);
+    for (const b of document.querySelectorAll('#ctools .tool')) b.setAttribute('aria-checked', String(b.dataset.ctool === ctool));
+  }
+
+  /* ---------- 화면 공유: 캘리브레이션 ---------- */
+
+  const CAL_TEXT = {
+    board: '<b>1/5 판 영역</b> · 판의 왼쪽 위 칸 모서리부터 오른쪽 아래 칸 모서리까지 드래그하세요. 10×16 격자가 칸 경계에 맞아야 합니다. <kbd>방향키</kbd> 1px 이동, <kbd>Shift</kbd>+<kbd>방향키</kbd> 크기 조절.',
+    hand0: '<b>2/5 손패 카드 1</b> · 첫 번째 카드에서 조각이 그려지는 부분만 드래그하세요. \'○칸\' 라벨과 회전·반전 버튼은 빼세요.',
+    hand1: '<b>3/5 손패 카드 2</b> · 두 번째 카드의 조각 부분만 드래그하세요.',
+    hand2: '<b>4/5 손패 카드 3</b> · 세 번째 카드의 조각 부분만 드래그하세요.',
+    baseline: '<b>5/5 빈 판 기준</b> · 게임을 막 시작해 판이 비어 있을 때 \'빈 판 기준 저장\'을 누르세요. 160칸 각각의 색을 기준으로 저장합니다.',
+  };
+
+  function currentCalRect() {
+    const s = CAL_STEPS[calib.step];
+    return s === 'board' || s === 'baseline' ? calib.rects.board : calib.rects.hand[Number(s.slice(4))];
+  }
+  function setCurrentCalRect(r) {
+    const s = CAL_STEPS[calib.step];
+    if (s === 'board') { calib.rects.board = r; calib.baseline = null; }
+    else if (s !== 'baseline') calib.rects.hand[Number(s.slice(4))] = r;
+  }
+
+  function startCalib() {
+    const sz = capture.size();
+    if (!sz.w) return;
+    correcting = false;
+    calib.active = true;
+    calib.step = 0;
+    calib.zoom = false;
+    calib.rects = { board: ratioToPx(settings.boardRect, sz), hand: settings.handRects.map(r => ratioToPx(r, sz)) };
+    calib.baseline = isCalibrated() ? settings.baseline : null;
+    reco.results = [];
+    renderCalib();
+    defaultView();
+    renderLiveControls();
+    renderReco();
+    updateStatus();
+  }
+
+  function renderCalib() {
+    $('#calibBar').hidden = !calib.active;
+    if (!calib.active) return;
+    const s = CAL_STEPS[calib.step];
+    let text = CAL_TEXT[s];
+    if (s === 'baseline' && calib.baseline) text += ' <b>저장됨</b>';
+    if (s === 'baseline' && capture.kind === 'fake') text += ' (가상 화면은 이 단계에서 빈 판을 그립니다)';
+    $('#calibStep').innerHTML = text;
+    $('#calPrev').disabled = calib.step === 0;
+    $('#calNext').disabled = calib.step === CAL_STEPS.length - 1 || !currentCalRect();
+    $('#calZoom').setAttribute('aria-pressed', String(calib.zoom));
+    $('#calPreset').hidden = capture.kind !== 'fake';
+    $('#calBaseline').hidden = s !== 'baseline';
+    $('#calBaseline').disabled = !calib.rects.board;
+    $('#calDone').disabled = !(calib.rects.board && calib.rects.hand.every(Boolean) && calib.baseline);
+  }
+
+  function gotoCalStep(i) {
+    calib.step = Math.max(0, Math.min(CAL_STEPS.length - 1, i));
+    renderCalib();
+    defaultView();
+    renderMirror();
+  }
+
+  function saveBaseline() {
+    const b = calib.rects.board;
+    if (!b) return;
+    // 가상 화면은 이 단계에서 빈 판을 그리므로, 새 프레임을 그린 뒤에 읽는다
+    if (capture.kind === 'fake') fakeScreen.render(demo, { forceEmpty: true });
+    calib.baseline = recognize.cellMeans(capture.grab(b), b);
+    toast('빈 판 기준색을 저장했습니다. \'저장하고 마치기\'를 누르세요.');
+    renderCalib();
+  }
+
+  function finishCalib() {
+    const sz = capture.size();
+    settings.boardRect = pxToRatio(calib.rects.board, sz);
+    settings.handRects = calib.rects.hand.map(r => pxToRatio(r, sz));
+    settings.baseline = calib.baseline;
+    saveSettings();
+    saveSettings.flush();
+    endCalib();
+    gridUntil = performance.now() + 4000;
+    resetRecognition();
+    toast('캘리브레이션을 저장했습니다.');
+  }
+
+  function endCalib() {
+    calib.active = false;
+    calib.drag = null;
+    renderCalib();
+    defaultView();
+    renderLiveControls();
+    renderMirror();
+    updateStatus();
+  }
+
+  function nudgeCal(dx, dy, resize) {
+    const r = currentCalRect();
+    if (!r) return;
+    const n = resize ? { ...r, w: Math.max(4, r.w + dx), h: Math.max(4, r.h + dy) } : { ...r, x: r.x + dx, y: r.y + dy };
+    setCurrentCalRect(n);
+    renderCalib();
+    renderMirror();
+  }
+
+  function setupLive() {
+    mirror = $('#mirror');
+    mctx = mirror.getContext('2d');
+    for (const b of document.querySelectorAll('.modes .mode')) b.addEventListener('click', () => setMode(b.dataset.mode));
+
+    $('#btnShare').addEventListener('click', () => (capture.kind === 'display' ? stopShare() : startShare()));
+    $('#btnFake').addEventListener('click', () => (capture.kind === 'fake' ? stopShare() : startFake()));
+    $('#btnCalib').addEventListener('click', startCalib);
+    $('#btnHeat').addEventListener('click', () => { heatOn = !heatOn; renderLiveControls(); renderMirror(); });
+    $('#btnCorrect').addEventListener('click', () => { correcting = !correcting; renderLiveControls(); renderMirror(); });
+    for (const b of document.querySelectorAll('#ctools .tool')) b.addEventListener('click', () => { ctool = b.dataset.ctool; renderLiveControls(); });
+    for (const cb of document.querySelectorAll('#fakeOpts input[data-fake]')) {
+      cb.checked = !!fakeScreen.opts[cb.dataset.fake];
+      cb.addEventListener('change', () => { fakeScreen.opts[cb.dataset.fake] = cb.checked; });
+    }
+
+    $('#calPrev').addEventListener('click', () => gotoCalStep(calib.step - 1));
+    $('#calNext').addEventListener('click', () => gotoCalStep(calib.step + 1));
+    $('#calZoom').addEventListener('click', () => { calib.zoom = !calib.zoom; renderCalib(); defaultView(); renderMirror(); });
+    $('#calPreset').addEventListener('click', () => {
+      const p = fakeScreen.preset();
+      calib.rects = { board: p.board, hand: p.hand };
+      calib.baseline = null;
+      gotoCalStep(CAL_STEPS.length - 1);
+    });
+    $('#calBaseline').addEventListener('click', saveBaseline);
+    $('#calCancel').addEventListener('click', endCalib);
+    $('#calDone').addEventListener('click', finishCalib);
+
+    mirror.addEventListener('pointerdown', e => {
+      if (e.button !== 0) return;
+      const p = toVideo(e);
+      if (calib.active) {
+        if (CAL_STEPS[calib.step] === 'baseline') return;
+        calib.drag = { x0: p.x, y0: p.y, prev: currentCalRect() };
+        mirror.setPointerCapture(e.pointerId);
+      } else if (correcting) {
+        correctAt(p, true);
+        mirror.setPointerCapture(e.pointerId);
+      }
+    });
+    mirror.addEventListener('pointermove', e => {
+      const p = toVideo(e);
+      if (calib.drag) {
+        const d = calib.drag;
+        setCurrentCalRect({ x: Math.min(d.x0, p.x), y: Math.min(d.y0, p.y), w: Math.abs(p.x - d.x0), h: Math.abs(p.y - d.y0) });
+        renderMirror();
+      } else if (correcting) {
+        const cell = boardCellAt(p);
+        if ((cell?.r ?? -1) !== (liveHover?.r ?? -1) || (cell?.c ?? -1) !== (liveHover?.c ?? -1)) {
+          liveHover = cell;
+          if (e.buttons & 1) correctAt(p, false);
+          renderMirror();
+        }
+      }
+    });
+    const end = () => {
+      if (calib.drag) {
+        const r = currentCalRect();
+        // 너무 작게 끌었으면 실수로 보고 원래 영역을 되살린다
+        if (!r || r.w < 6 || r.h < 6) setCurrentCalRect(calib.drag.prev);
+        calib.drag = null;
+        renderCalib();
+        renderMirror();
+      }
+      liveDrag = null;
+    };
+    mirror.addEventListener('pointerup', end);
+    mirror.addEventListener('pointercancel', end);
+    mirror.addEventListener('pointerleave', () => { if (liveHover) { liveHover = null; renderMirror(); } });
+
+    addEventListener('resize', () => { if (mode === 'live') { fitMirror(); renderMirror(); } });
+  }
+
+  function setMode(m) {
+    if (m === mode) return;
+    mode = m;
+    settings.mode = m;
+    saveSettings();
+    for (const b of document.querySelectorAll('.modes .mode')) b.setAttribute('aria-pressed', String(b.dataset.mode === m));
+    $('#demoView').hidden = m !== 'demo';
+    $('#liveView').hidden = m !== 'live';
+    $('#tools').hidden = m !== 'demo';
+    reco.results = [];
+    reco.sel = 0;
+    if (m === 'live') { fitMirror(); defaultView(); renderLiveControls(); }
+    renderState();
+    renderReco();
+    requestSolve();
+  }
+
+  /* ---------- 화면 공유: 인식과 확정 ---------- */
+
+  const RC = config.RECOG_CONST;
+  const recog = { lastKey: null, stable: 0, confirmed: null, confirmedKey: null, issue: null, lastRead: null, unknown: 0, preview: false, iconMiss: {} };
+  let correcting = false, ctool = 'fill', liveHover = null, liveDrag = null;
+  let baseLabCache = { src: null, lab: null };
+
+  function baseLab() {
+    if (baseLabCache.src !== settings.baseline) baseLabCache = { src: settings.baseline, lab: recognize.baselineLab(settings.baseline) };
+    return baseLabCache.lab;
+  }
+
+  function resetRecognition() {
+    Object.assign(recog, { lastKey: null, stable: 0, confirmed: null, confirmedKey: null, issue: null, lastRead: null, unknown: 0, preview: false, iconMiss: {} });
+    const fresh = emptyDemo();
+    live.board = fresh.board;
+    live.items = fresh.items;
+    live.hand = fresh.hand;
+    setAlert(null);
+    if (mode === 'live') { renderState(); requestSolve(); }
+  }
+
+  const obsKey = o => [o.board.join(','), o.items.dot.join(','), o.items.swap.join(','), ...o.hand.map(p => (p ? core.canonicalKey(p.cells) + '@' + core.cellsKey(p.cells) : '-'))].join('|');
+  const cloneObs = o => ({
+    board: o.board.slice(),
+    items: { dot: o.items.dot.slice(), swap: o.items.swap.slice() },
+    hand: o.hand.map(p => p && { cells: p.cells.map(x => x.slice()) }),
+  });
+
+  function recognizeFrame() {
+    const px = rectsPx();
+    const img = capture.grab(unionRect([px.board, ...px.hand]));
+    const opt = {
+      tFill: settings.tFill, tGloss: settings.tGloss, previewTol: settings.previewTol,
+      colors: RC.colors, glossPos: RC.glossPos, glossSize: RC.glossSize,
+    };
+    const read = recognize.readBoard(img, px.board, baseLab(), opt);
+    const prev = recog.confirmed;
+    const merged = recognize.mergeBoard(read, prev?.board ?? null);
+    recog.lastRead = read;
+    recog.unknown = merged.unknown;
+    recog.preview = read.preview;
+
+    // 아이콘: 템플릿이 없으면 직전 확정값(손 보정 포함)을 그대로 쓴다. 미리보기 칸 위는 직전값.
+    let items = recognize.readIcons(img, px.board, settings.iconTemplates, settings.tIcon);
+    recog.iconScores = items?.scores;
+    if (items) items = { dot: items.dot, swap: items.swap };
+    if (!items) items = prev ? { dot: prev.items.dot.slice(), swap: prev.items.swap.slice() } : { dot: new Array(ROWS).fill(0), swap: new Array(ROWS).fill(0) };
+    else if (prev) {
+      for (let i = 0; i < ROWS * COLS; i++) {
+        const r = Math.floor(i / COLS), c = i % COLS;
+        const cls = read.cells[i].cls;
+        // 미리보기·예고 칸 위는 아이콘을 볼 수 없으니 직전값 (아이콘 때문에 '불확실'이 된 칸은 그대로 읽는다)
+        if (cls === 'pg' || cls === 'px' || cls === 'fc') {
+          for (const k of ['dot', 'swap']) pieces.setBit(items[k], r, c, pieces.getBit(prev.items[k], r, c));
+          continue;
+        }
+        // 반짝임으로 한두 프레임 놓치는 것은 무시: 확정된 아이콘은 4프레임 연속 안 보여야 지운다
+        for (const k of ['dot', 'swap']) {
+          const had = pieces.getBit(prev.items[k], r, c), see = pieces.getBit(items[k], r, c);
+          const key = k + i;
+          if (had && !see) {
+            recog.iconMiss[key] = (recog.iconMiss[key] || 0) + 1;
+            if (recog.iconMiss[key] < 4) pieces.setBit(items[k], r, c, 1);
+          } else {
+            recog.iconMiss[key] = 0;
+          }
+        }
+      }
+    }
+
+    const hand = px.hand.map(r => {
+      const h = recognize.readCard(img, r);
+      return h ? { cells: pieces.normalize(h.cells), grid: `${h.C}×${h.R}`, score: h.score } : null;
+    });
+    recog.handDebug = hand;
+    const obs = { board: merged.board, items, hand: hand.map(h => h && { cells: h.cells }) };
+    const key = obsKey(obs);
+    if (key === recog.lastKey) recog.stable++;
+    else { recog.lastKey = key; recog.stable = 1; }
+
+    if (key === recog.confirmedKey) {
+      if (recog.issue) { recog.issue = null; setAlert(null); }
+    } else if (recog.stable >= RC.stableFrames) {
+      const check = consistency(prev, obs, merged.issues);
+      if (check.ok) confirmObs(obs, key, check);
+      else if (recog.issue?.key !== key) {
+        recog.issue = { key, obs, check };
+        setAlert(`인식 결과가 직전 상태와 맞지 않습니다: ${check.msg}. 판이 실제로 이렇게 바뀌었으면 확정하고, 아니면 보정하세요.`, true, [
+          ['이대로 확정', () => { if (recog.issue) confirmObs(recog.issue.obs, recog.issue.key, { ok: true, forced: true }); }],
+          ['보정 모드', () => { correcting = true; renderLiveControls(); }],
+        ]);
+      }
+    }
+    renderLiveNote();
+    updateStatus();
+  }
+
+  // 직전 확정 상태에서 조각을 놓았다면: 채움 칸(새) = 채움 칸(이전) + 놓은 칸 − 10 × 지운 줄
+  function consistency(prev, obs, previewIssues) {
+    if (previewIssues > 0) return { ok: false, msg: `미리보기·예고 행 칸 ${previewIssues}개가 직전 상태와 어긋남` };
+    if (!prev) return { ok: true, placed: 0, cleared: 0, clearedRows: [] };
+    const a = prev.board, b = obs.board;
+    if (b.every(x => x === 0) && a.some(x => x)) return { ok: true, newGame: true, placed: 0, cleared: 0, clearedRows: [] };
+    let placed = 0;
+    const clearedRows = [];
+    for (let r = 0; r < ROWS; r++) {
+      const lost = a[r] & ~b[r];
+      if (lost) {
+        if (b[r] !== 0) return { ok: false, msg: `${r + 1}행에서 블록 일부만 사라짐 (줄은 통째로만 지워짐)` };
+        clearedRows.push(r);
+        placed += pieces.popcount(FULL & ~a[r]);
+      } else {
+        placed += pieces.popcount(b[r] & ~a[r]);
+      }
+    }
+    const res = { ok: true, placed, cleared: clearedRows.length, clearedRows };
+    if (!placed) return res;
+    const sizes = prev.hand.filter(Boolean).map(p => p.cells.length);
+    if (!sizes.length) return res;
+    // 손패 조각 일부를 놓은 합, 또는 점 찍기 1칸을 더한 합으로 설명되어야 한다
+    const sums = new Set();
+    for (let m = 1; m < 1 << sizes.length; m++) {
+      let s = 0;
+      sizes.forEach((n, i) => { if (m & (1 << i)) s += n; });
+      sums.add(s);
+      sums.add(s + 1);
+    }
+    sums.add(1);
+    if (!sums.has(placed)) return { ok: false, msg: `늘어난 칸 ${placed}개가 손패 크기(${sizes.join(', ')})로 설명되지 않음` };
+    res.dotUsed = placed === 1 && !sizes.includes(1);
+    return res;
+  }
+
+  function confirmObs(obs, key, check) {
+    const prev = recog.confirmed;
+    recog.confirmed = cloneObs(obs);
+    recog.confirmedKey = key;
+    recog.issue = null;
+    setAlert(null);
+    live.board = obs.board.slice();
+    live.items = { dot: obs.items.dot.slice(), swap: obs.items.swap.slice() };
+    live.hand = obs.hand.map(p => p && sanitizePiece({ cells: p.cells, name: dictFind(p.cells)?.name }));
+
+    const notes = [];
+    if (check.newGame) {
+      live.clearedLines = 0;
+      notes.push('판이 비어 새 게임으로 보고 제거한 줄 수를 0으로 되돌렸습니다');
+    } else if (prev && check.placed > 0) {
+      live.clearedLines += check.cleared;
+      // 지운 줄에 있던 능력 아이콘은 획득 (한도까지)
+      let gd = 0, gs = 0;
+      for (const r of check.clearedRows) { gd += pieces.popcount(prev.items.dot[r]); gs += pieces.popcount(prev.items.swap[r]); }
+      const cap = settings.rules.abilityCap;
+      const room = () => Math.max(0, cap - live.abilities.dot - live.abilities.swap);
+      const d = Math.min(gd, room()); live.abilities.dot += d;
+      const s = Math.min(gs, room()); live.abilities.swap += s;
+      if (check.dotUsed && live.abilities.dot > 0) { live.abilities.dot--; notes.push('점 찍기 1개 사용'); }
+      if (live.abilities.untilNext > 0) live.abilities.untilNext--;
+      if (check.cleared) notes.push(`${check.cleared}줄 삭제`);
+      if (d || s) notes.push(`능력 획득 ${[d ? `점 찍기 ${d}` : '', s ? `바꿔 뽑기 ${s}` : ''].filter(Boolean).join(', ')}`);
+    }
+    // 새로 나타난 손패 조각은 사전에 등장 기록을 남긴다 (처음 보는 모양은 이름 없이 추가)
+    const stage = config.stageOf(settings.rules, live.clearedLines);
+    const fresh = live.hand.filter((p, i) => p && (!prev?.hand[i] || core.cellsKey(prev.hand[i].cells) !== core.cellsKey(p.cells)));
+    if (fresh.length) {
+      for (const p of fresh) if (pieces.isConnected(p.cells) && !dictFind(p.cells)) dictUpsert(p.cells, '');
+      dictRecord(fresh, stage);
+    }
+    if (notes.length) toast(notes.join(' · '));
+    saveLive();
+    reco.results = [];
+    renderState();
+    requestSolve();
+  }
+
+  // 보정: 지금 확정 상태를 고친다. 게임 판이 바뀌어 새 인식 결과가 확정되면 덮어쓴다.
+  function correctAt(p, start) {
+    const cell = boardCellAt(p);
+    if (!cell) return;
+    if (ctool === 'tplDot' || ctool === 'tplSwap') {
+      if (!start) return;
+      const b = rectsPx().board;
+      const v = recognize.iconTemplate(capture.grab(b), b, cell.r, cell.c);
+      if (!v) { toast('이 칸에서 아이콘 색을 찾지 못했습니다. 아이콘이 보이는 칸을 누르세요.'); return; }
+      const k = ctool === 'tplDot' ? 'dot' : 'swap';
+      const list = settings.iconTemplates[k];
+      list.push(v);
+      while (list.length > RC.maxTemplates) list.shift();
+      saveSettings();
+      toast(`${k === 'dot' ? '점 찍기' : '바꿔 뽑기'} 아이콘 템플릿 ${list.length}개 (${cell.r + 1}행 ${cell.c + 1}열)`);
+      return;
+    }
+    const layer = ctool === 'fill' ? live.board : live.items[ctool];
+    if (start) liveDrag = { on: !pieces.getBit(layer, cell.r, cell.c) };
+    if (!liveDrag) return;
+    pieces.setBit(layer, cell.r, cell.c, liveDrag.on);
+    if (recog.confirmed) {
+      recog.confirmed.board = live.board.slice();
+      recog.confirmed.items = { dot: live.items.dot.slice(), swap: live.items.swap.slice() };
+    } else {
+      // 아직 확정 전이면 보정한 판을 확정 상태로 삼는다
+      recog.confirmed = cloneObs(live);
+      recog.confirmedKey = recog.lastKey;
+    }
+    if (recog.issue) { recog.issue = null; setAlert(null); recog.confirmedKey = recog.lastKey; }
+    reco.results = [];
+    renderState();
+    requestSolve();
+  }
+
+  function liveStatus() {
+    if (!capture.kind) return { text: '공유 전', tone: '' };
+    if (calib.active) return { text: '캘리브레이션 중', tone: 'busy' };
+    if (!isCalibrated()) return { text: '캘리브레이션 필요', tone: 'warn' };
+    if (recog.issue) return { text: '보정 필요', tone: 'warn' };
+    if (!recog.confirmed) return { text: recog.stable ? '확정 대기' : '인식 중', tone: 'busy' };
+    if (recog.lastKey !== recog.confirmedKey) return { text: '확정 대기', tone: 'busy' };
+    return null;
+  }
+
+  function renderLiveNote() {
+    const notes = [];
+    if (recog.preview) notes.push('마우스 미리보기가 보입니다. 마우스를 판 밖으로 옮겨 주세요. 미리보기가 떠 있는 동안은 직전 상태를 유지합니다.');
+    if (recog.unknown) notes.push(`아직 확정하지 못한 칸 ${recog.unknown}개는 빈칸으로 둡니다.`);
+    if (!settings.iconTemplates.dot.length && !settings.iconTemplates.swap.length) notes.push('능력 아이콘 템플릿이 없어 아이콘은 인식하지 않습니다. 보정 → 템플릿 등록으로 아이콘 칸을 눌러 주세요.');
+    $('#liveNote').textContent = notes.join(' ');
+    if (capture.kind === 'fake') {
+      const boardOk = demo.board.reduce((a, row, r) => a + COLS - pieces.popcount((row ^ live.board[r]) & FULL), 0);
+      const handOk = demo.hand.filter((p, i) => {
+        const q = live.hand[i];
+        return (!p && !q) || (p && q && core.cellsKey(pieces.normalize(p.cells)) === core.cellsKey(q.cells));
+      }).length;
+      const icons = demo.items.dot.every((v, r) => v === live.items.dot[r]) && demo.items.swap.every((v, r) => v === live.items.swap[r]);
+      $('#fakeScore').textContent = `인식 일치: 판 ${boardOk}/160 · 손패 ${handOk}/3 · 아이콘 ${icons ? '일치' : '불일치'}`;
+    }
+  }
+
+  // 히트맵: 칸별 기준색 색차(d)와 광택(g), 분류
+  function drawHeat(g, cellCss) {
+    const read = recog.lastRead;
+    if (!read) return;
+    const tag = { fill: '', empty: '', unsure: '?', pg: 'G', px: 'X', fc: 'C' };
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    read.cells.forEach((cell, i) => {
+      const r = Math.floor(i / COLS), c = i % COLS;
+      const { x, y, w, h } = cellCss(r, c);
+      const a = Math.min(0.75, cell.d / (2 * Math.max(1, settings.tFill)));
+      g.fillStyle = cell.cls === 'unsure' ? 'rgba(243,201,105,.6)' : tag[cell.cls] ? 'rgba(79,209,197,.55)' : `rgba(255,60,120,${a})`;
+      g.fillRect(x + 1, y + 1, w - 2, h - 2);
+      g.font = `600 ${Math.max(8, Math.round(h * 0.3))}px ${getComputedStyle(document.body).getPropertyValue('--mono')}`;
+      g.fillStyle = '#fff';
+      g.fillText(`${Math.round(cell.d)}${tag[cell.cls] ? tag[cell.cls] : ''}`, x + w / 2, y + h * 0.36);
+      g.fillStyle = cell.g > settings.tGloss ? '#FFE27A' : 'rgba(255,255,255,.65)';
+      g.fillText(String(Math.round(cell.g)), x + w / 2, y + h * 0.72);
+    });
   }
 
   /* ---------- 손패 ---------- */
@@ -1942,11 +3392,14 @@ const ui = (() => {
       if (!name) name = dictFind(cells)?.name ?? '';
       const piece = sanitizePiece({ cells, name });
       if (piece && $('#pdDict').checked && pieces.isConnected(piece.cells)) {
-        dictUpsert(piece.cells, piece.name);
+        dictUpsert(piece.cells, piece.name, true);
         renderDict();
       }
       cur().hand[editor.idx] = piece;
-      demoChanged();
+      // 화면 공유 중이면 보정으로 취급한다 (다음 새 인식 결과가 오면 덮어씀)
+      if (mode === 'live' && recog.confirmed) recog.confirmed.hand[editor.idx] = piece && { cells: piece.cells };
+      reco.results = [];
+      stateChanged();
     });
   }
 
@@ -1978,7 +3431,7 @@ const ui = (() => {
     const match = connected ? dictFind(cells) : null;
     $('#pdName').placeholder = match?.name ? `사전: ${match.name}` : '선택 · 예) ㅏ';
     if (!cells.length) info.textContent = '칸을 눌러 모양을 그립니다. 비워 두고 저장하면 손패가 빕니다.';
-    else if (!connected) info.textContent = `${cells.length}칸 · 떨어진 칸이 있습니다. 조각은 한 덩어리여야 합니다.`;
+    else if (!connected) info.textContent = `${cells.length}칸 · 떨어진 칸이 있습니다. 조각은 상하좌우나 대각선으로 이어져야 합니다.`;
     else {
       const { h, w } = pieces.bbox(pieces.normalize(cells));
       info.textContent = `${cells.length}칸 · 가로 ${w} × 세로 ${h}` + (match ? ` · 사전의 '${match.name || '이름 없음'}'과 같은 모양` : '');
@@ -2012,7 +3465,7 @@ const ui = (() => {
       const input = $('input', row);
       const commit = v => {
         stepSet(s.key, Math.min(s.max, Math.max(0, v)));
-        demoChanged();
+        stateChanged();
       };
       for (const b of row.querySelectorAll('button')) {
         b.addEventListener('click', () => commit(stepGet(s.key) + Number(b.dataset.d)));
@@ -2121,7 +3574,7 @@ const ui = (() => {
     apply.textContent = '이 수 적용';
     apply.title = '데모 판에 첫 수를 반영합니다';
     apply.addEventListener('click', () => applyFirstAction(res));
-    foot.append(apply);
+    if (mode === 'demo') foot.append(apply);
     card.append(foot);
     box.append(card);
 
@@ -2190,7 +3643,7 @@ const ui = (() => {
     }
     reco.results = [];
     reco.sel = 0;
-    demoChanged();
+    stateChanged();
   }
 
   function escapeHtml(s) {
@@ -2248,7 +3701,7 @@ const ui = (() => {
     demo = sanitizeDemo(v);
     reco.results = [];
     reco.sel = 0;
-    demoChanged();
+    stateChanged();
   }
 
   function renderTests(list) {
@@ -2273,6 +3726,8 @@ const ui = (() => {
       fields: [
         { path: 'tFill', label: 'T_fill', desc: '빈 판 기준과의 Lab 색차', kind: 'range', min: 0, max: 60, step: 0.5 },
         { path: 'tGloss', label: 'T_gloss', desc: '좌상단 광택과 중앙의 밝기 차', kind: 'range', min: 0, max: 120, step: 1 },
+        { path: 'tIcon', label: 'T_icon', desc: '능력 아이콘 템플릿 상관값', kind: 'range', min: 0.2, max: 0.95, step: 0.01 },
+        { path: 'previewTol', label: '미리보기 색 허용 오차', desc: '초록·X·예고 색과의 RGB 거리', kind: 'range', min: 5, max: 90, step: 1 },
       ],
     },
     {
@@ -2460,6 +3915,13 @@ const ui = (() => {
       const meta = document.createElement('span');
       meta.className = 'hint';
       meta.textContent = `${e.cells.length}칸 · 등장 기록 ${seen}회`;
+      if (e.unsure) {
+        const t = document.createElement('span');
+        t.className = 'tag';
+        t.textContent = '확인 필요';
+        t.title = '이미지에서 읽은 모양이 불확실합니다. 다르면 지우고 손패 편집으로 다시 저장하세요.';
+        meta.append(t);
+      }
       info.append(name, meta);
       const del = document.createElement('button');
       del.type = 'button';
@@ -2513,6 +3975,21 @@ const ui = (() => {
       renderAbilities();
       requestSolve();
       toast('설정을 기본값으로 되돌렸습니다.');
+    });
+
+    $('#btnDictPreset').addEventListener('click', () => {
+      let added = 0;
+      for (const p of config.PIECE_PRESET) {
+        const cells = pieces.normalize(config.presetCells(p.rows));
+        const before = dict.pieces.length;
+        const e = dictUpsert(cells, dictFind(cells)?.name || p.name);
+        if (dict.pieces.length > before) { added++; if (p.unsure) e.unsure = true; }
+      }
+      persist(storage.KEYS.dict, dict);
+      renderDict();
+      renderHand();
+      requestSolve();
+      toast(added ? `기본 조각 ${added}종을 사전에 더했습니다. '확인 필요' 표시가 붙은 모양을 확인해 주세요.` : '기본 조각은 이미 사전에 있습니다.');
     });
 
     $('#btnDictExport').addEventListener('click', () => {
@@ -2683,8 +4160,18 @@ const ui = (() => {
       const t = e.target;
       if (t instanceof HTMLElement && (t.closest('input, textarea, select, dialog[open]') || t.isContentEditable)) return;
       if (!$('#drawer').hidden) return;
+      if (calib.active && e.key.startsWith('Arrow')) {
+        e.preventDefault();
+        const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+        nudgeCal(d[0], d[1], e.shiftKey);
+        return;
+      }
       if (e.code === 'Space') { e.preventDefault(); solveNow(); }
       else if (e.key === '1' || e.key === '2' || e.key === '3') selectAlt(Number(e.key) - 1);
+      else if ((e.key === 'r' || e.key === 'R') && mode === 'live' && capture.kind) {
+        resetRecognition();
+        toast('보정을 버리고 다시 인식합니다.');
+      }
     });
   }
 
@@ -2693,7 +4180,9 @@ const ui = (() => {
   function init() {
     settings = storage.loadSettings();
     demo = sanitizeDemo(storage.load(storage.KEYS.demo));
+    live = emptyLive();
     dict = loadDict();
+    setupLive();
     setupBoard();
     setupDialog();
     setupAbilities();
@@ -2702,9 +4191,10 @@ const ui = (() => {
     setupSim();
     setupKeys();
     renderTools();
-    renderDemo();
+    renderState();
     renderReco();
-    setStatus('데모 모드');
+    if (settings.mode === 'live') setMode('live');
+    updateStatus();
     requestSolve();
     if (new URLSearchParams(location.search).has('selftest')) {
       $('#debugPanel').open = true;
@@ -2713,8 +4203,9 @@ const ui = (() => {
   }
 
   return {
-    init, setDemo, solveNow, selectAlt,
+    init, setDemo, solveNow, selectAlt, setMode,
     get settings() { return settings; }, get demo() { return demo; }, get dict() { return dict; }, get reco() { return reco; },
+    get live() { return live; }, get recog() { return recog; }, get calib() { return calib; }, get mode() { return mode; },
   };
 })();
 
@@ -2757,6 +4248,57 @@ const selftest = (() => {
       // L자(X. / X. / XX)를 시계 방향 90° 돌리면 XXX / X..
       const rotated = core.normalize(core.transform([[0, 0], [1, 0], [2, 0], [2, 1]], 0, 1));
       return { pass: core.cellsKey(flipped) === '0,0 0,1 1,0' && core.cellsKey(rotated) === '0,0 0,1 0,2 1,0', detail: `${core.cellsKey(flipped)} / ${core.cellsKey(rotated)}` };
+    });
+
+    t('대각선 조각 ㅅ: 방향 4가지, 한 덩어리로 인정', () => {
+      const s = [[0, 1], [1, 0], [1, 2]];
+      return { pass: n(s) === 4 && pieces.isConnected(s), detail: `${n(s)}방향` };
+    });
+
+    t('인식: 가상 화면의 판·손패 (미리보기·커서·선택 카드 포함)', () => {
+      const p = fakeScreen.preset();
+      const cv = document.createElement('canvas');
+      cv.width = fakeScreen.W;
+      cv.height = fakeScreen.H;
+      const g = cv.getContext('2d', { willReadFrequently: true });
+      const grab = r => {
+        g.drawImage(fakeScreen.canvas, 0, 0);
+        const x = Math.floor(r.x), y = Math.floor(r.y), w = Math.ceil(r.w), h = Math.ceil(r.h);
+        return { data: g.getImageData(x, y, w, h).data, width: w, height: h, x0: x, y0: y };
+      };
+      const st = empty();
+      st.board[15] = FULL & ~(1 << 2);
+      st.board[14] = 0b1100111101;
+      st.board[13] = 0b0000110011;
+      st.board[8] = 0b0001000000;
+      st.hand = [{ cells: [[0, 1], [1, 0], [1, 2]] }, { cells: I5 }, { cells: config.presetCells(['X.X', 'XXX', 'X.X', 'XXX']) }];
+      st.abilities = { dot: 0, swap: 0, untilNext: 3 };
+      st.clearedLines = 0;
+      const saved = { ...fakeScreen.opts };
+      try {
+        Object.assign(fakeScreen.opts, { preview: false, cursor: false, selected: false, blur: true });
+        fakeScreen.render(st, { forceEmpty: true });
+        const lab = recognize.baselineLab(recognize.cellMeans(grab(p.board), p.board));
+        const opt = { tFill: settings.tFill, tGloss: settings.tGloss, previewTol: settings.previewTol, ...config.RECOG_CONST };
+        const readAll = () => {
+          const img = grab({ x: 0, y: 0, w: fakeScreen.W, h: fakeScreen.H });
+          return { read: recognize.readBoard(img, p.board, lab, opt), hand: p.hand.map(r => recognize.readCard(img, r)) };
+        };
+        fakeScreen.render(st);
+        const a = readAll();
+        const m1 = recognize.mergeBoard(a.read, null);
+        const boardOk = m1.board.every((v, r) => v === st.board[r]);
+        const handOk = a.hand.every((h, i) => h && core.cellsKey(core.normalize(h.cells)) === core.cellsKey(core.normalize(st.hand[i].cells)));
+        Object.assign(fakeScreen.opts, { preview: true, cursor: true, selected: true });
+        fakeScreen.render(st);
+        const b = readAll();
+        const m2 = recognize.mergeBoard(b.read, st.board);
+        const keepOk = m2.board.every((v, r) => v === st.board[r]) && m2.issues === 0 && b.read.preview;
+        const handOk2 = b.hand.every((h, i) => h && core.cellsKey(core.normalize(h.cells)) === core.cellsKey(core.normalize(st.hand[i].cells)));
+        return { pass: boardOk && handOk && keepOk && handOk2, detail: `판 ${boardOk ? '일치' : '불일치'} · 손패 ${handOk ? '일치' : '불일치'} · 미리보기 중 유지 ${keepOk ? '됨' : '안 됨'} · 선택 카드 ${handOk2 ? '일치' : '불일치'}` };
+      } finally {
+        Object.assign(fakeScreen.opts, saved);
+      }
     });
 
     t('사전 정규화: 회전·반전이 달라도 같은 키', () => {
@@ -2892,7 +4434,7 @@ const selftest = (() => {
 
 ui.init();
 // 콘솔·자동 검증용
-window.HMM = { config, storage, core, pieces, solver, ui, selftest };
+window.HMM = { config, storage, core, pieces, solver, capture, recognize, fakeScreen, ui, selftest };
 </script>
 </body>
 </html>
