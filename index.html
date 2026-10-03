@@ -1,0 +1,1308 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>한글 모아모아 솔버</title>
+<meta name="description" content="메이플스토리 미니게임 '한글 모아모아'의 판과 손패를 읽고 조각을 놓을 위치를 추천합니다. 화면을 읽기만 하고 게임에는 입력을 보내지 않습니다." />
+<meta name="theme-color" content="#12141A" />
+<style>
+:root{
+  --bg:#12141A;
+  --panel:#1A1D25;
+  --panel-2:#222632;
+  --line:#2E3341;
+  --line-soft:#252936;
+  --text:#E8EAF0;
+  --dim:#9AA1B2;
+  --faint:#687084;
+  --accent:#4FD1C5;
+  --accent-ink:#0E2E2B;
+  --gold:#F3C969;
+  --pink:#F27BA7;
+  --dot:#4A7DFF;
+  --swap:#C47CF2;
+  --danger:#FF7A7A;
+  --radius:12px;
+  --font:'Pretendard','Malgun Gothic','Apple SD Gothic Neo',system-ui,sans-serif;
+  --mono:ui-monospace,'Cascadia Mono',Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.55;min-height:100vh}
+[hidden]{display:none!important}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{cursor:not-allowed;opacity:.45}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* 상단 바 */
+.topbar{
+  position:sticky;top:0;z-index:20;
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;
+  padding:10px 16px;background:rgba(18,20,26,.92);backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--line-soft);
+}
+.brand{font-weight:700;font-size:16px;letter-spacing:-.01em;white-space:nowrap}
+.brand b{color:var(--accent)}
+.modes{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:2px}
+.mode{border:0;background:none;padding:4px 12px;border-radius:7px;color:var(--dim);font-size:13px}
+.mode.on{background:var(--panel-2);color:var(--text)}
+.actions{display:flex;gap:6px;margin-left:auto}
+.btn{
+  border:1px solid var(--line);background:var(--panel);border-radius:8px;
+  padding:6px 12px;font-size:13px;white-space:nowrap;
+}
+.btn:hover:not(:disabled){border-color:var(--faint)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.btn.ghost{background:none}
+.btn.sm{padding:3px 9px;font-size:12px}
+.status{
+  display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--dim);
+  padding:3px 10px;border:1px solid var(--line);border-radius:999px;white-space:nowrap;
+}
+.status::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--faint)}
+.status[data-state="demo"]::before{background:var(--gold)}
+
+/* 레이아웃 */
+.layout{
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,380px);gap:16px;
+  max-width:1120px;margin:0 auto;padding:16px;
+}
+@media (max-width:860px){.layout{grid-template-columns:minmax(0,1fr)}}
+.side{display:flex;flex-direction:column;gap:16px;min-width:0}
+.panel{background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--radius);padding:14px}
+.panel-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-bottom:12px}
+.panel h2{font-size:14px;font-weight:700;letter-spacing:-.01em}
+.panel h2 small{font-weight:400;color:var(--faint);font-size:12px;margin-left:6px}
+.spacer{flex:1}
+.hint{color:var(--faint);font-size:12px}
+
+/* 판 */
+.tools{display:flex;gap:4px;flex-wrap:wrap}
+.tool{
+  display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:none;
+  border-radius:8px;padding:4px 10px;font-size:12px;color:var(--dim);
+}
+.tool[aria-checked="true"]{border-color:var(--accent);color:var(--text);background:rgba(79,209,197,.08)}
+.sw{width:10px;height:10px;border-radius:3px;display:inline-block}
+.sw.fill{background:var(--pink)}
+.sw.dot{background:none;border:2px solid var(--dot);border-radius:50%}
+.sw.swap{background:var(--swap)}
+.canvas-wrap{display:flex;justify-content:center}
+#board{display:block;max-width:100%;height:auto;touch-action:none;cursor:crosshair;user-select:none}
+.board-note{margin-top:10px;text-align:center}
+.board-note.warn{color:var(--gold)}
+
+/* 손패 */
+.hand{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.hand-card{
+  position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;
+  background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:22px 6px 8px;
+  min-width:0;
+}
+.hand-card:hover{border-color:var(--faint)}
+.hc-idx{position:absolute;top:5px;left:8px;font-size:11px;color:var(--faint);font-family:var(--mono)}
+.hc-meta{font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.hc-meta b{color:var(--text);font-weight:600}
+.mini-box{height:66px;display:flex;align-items:center;justify-content:center}
+.mini{display:grid;gap:1px}
+.mini span{width:10px;height:10px;border-radius:2px}
+.mini span.on{background:var(--pink)}
+.mini-empty{font-size:12px;color:var(--faint)}
+
+/* 능력 */
+.steppers{display:grid;gap:8px}
+.stepper{display:grid;grid-template-columns:1fr 30px 62px 30px;align-items:center;gap:6px}
+.stepper label{display:flex;align-items:center;gap:8px;font-size:13px}
+.stepper button{height:30px;border:1px solid var(--line);background:var(--panel-2);border-radius:7px;font-size:15px;line-height:1}
+.stepper input{
+  height:30px;width:100%;text-align:center;background:var(--bg);border:1px solid var(--line);border-radius:7px;
+  font-family:var(--mono);-moz-appearance:textfield;
+}
+.stepper input::-webkit-inner-spin-button,.stepper input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.ab-summary{margin-top:10px;font-size:12px;color:var(--dim)}
+.ab-summary .over{color:var(--danger)}
+
+/* 추천 */
+.reco-empty{color:var(--faint);font-size:13px}
+.reco-empty p + p{margin-top:4px}
+
+/* 디버그 */
+.debug summary{cursor:pointer;font-weight:700;font-size:14px}
+.debug pre{
+  margin-top:10px;font-family:var(--mono);font-size:12px;line-height:1.35;color:var(--dim);
+  background:var(--bg);border:1px solid var(--line-soft);border-radius:8px;padding:8px 10px;overflow:auto;
+}
+.debug textarea{
+  width:100%;min-height:72px;margin-top:8px;font-family:var(--mono);font-size:12px;
+  background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 8px;resize:vertical;
+}
+.row-btns{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+
+/* 설정 서랍 */
+.backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:40}
+.drawer{
+  position:fixed;top:0;right:0;bottom:0;z-index:41;width:min(440px,100vw);
+  background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;
+  padding:0 16px 32px;
+}
+.drawer-head{
+  position:sticky;top:0;display:flex;align-items:center;gap:8px;background:var(--panel);
+  padding:14px 0 10px;border-bottom:1px solid var(--line-soft);margin-bottom:6px;z-index:1;
+}
+.drawer-head h2{font-size:16px}
+.group{padding:12px 0;border-bottom:1px solid var(--line-soft)}
+.group h3{font-size:13px;font-weight:700;margin-bottom:2px}
+.group > .hint{display:block;margin-bottom:8px}
+.field{display:grid;grid-template-columns:minmax(0,1fr) 130px;align-items:center;gap:4px 10px;padding:5px 0}
+.field .f-label{font-size:13px}
+.field .f-desc{display:block;font-size:11px;color:var(--faint)}
+.field input[type="number"],.field input[type="text"]{
+  width:100%;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:4px 8px;
+  font-family:var(--mono);font-size:12px;
+}
+.field input.invalid{border-color:var(--danger)}
+.field.range{grid-template-columns:minmax(0,1fr) 130px}
+.range-ctl{display:flex;align-items:center;gap:8px}
+.range-ctl input{flex:1;min-width:0;accent-color:var(--accent)}
+.range-ctl output{font-family:var(--mono);font-size:12px;width:34px;text-align:right}
+.tag{
+  display:inline-block;font-size:10px;padding:0 5px;border-radius:4px;margin-left:5px;vertical-align:1px;
+  color:var(--gold);border:1px solid rgba(243,201,105,.4);
+}
+.kv{display:flex;justify-content:space-between;font-size:13px;padding:3px 0}
+.kv span:last-child{color:var(--dim)}
+
+/* 조각 편집 대화상자 */
+.dialog{
+  margin:auto;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:14px;
+  padding:16px;width:min(340px,calc(100vw - 32px));
+}
+.dialog::backdrop{background:rgba(0,0,0,.55)}
+.dialog h3{font-size:15px;margin-bottom:12px}
+.edit-grid{
+  display:grid;grid-template-columns:repeat(6,1fr);gap:3px;
+  width:min(240px,100%);margin:0 auto;touch-action:none;user-select:none;
+}
+.ec{aspect-ratio:1;border:1px solid var(--line);background:var(--bg);border-radius:5px;padding:0}
+.ec.on{background:var(--pink);border-color:var(--pink)}
+.pd-info{text-align:center;font-size:12px;color:var(--dim);margin:10px 0 12px;min-height:1.5em}
+.pd-info.warn{color:var(--gold)}
+.dialog .field{grid-template-columns:auto minmax(0,1fr)}
+.pd-actions{display:flex;gap:6px;margin-top:14px}
+
+/* 알림 */
+.toast{
+  position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:60;
+  background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:8px 14px;font-size:13px;
+  box-shadow:0 6px 24px rgba(0,0,0,.4);max-width:calc(100vw - 32px);
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">한글 모아모아 <b>솔버</b></div>
+  <div class="modes" role="group" aria-label="모드">
+    <button class="mode on" type="button" aria-pressed="true">데모</button>
+    <button class="mode" type="button" aria-pressed="false" disabled title="3단계(캡처)에서 구현">화면 공유</button>
+  </div>
+  <span class="status" id="status" data-state="demo">공유 전 · 데모 모드</span>
+  <div class="actions">
+    <button class="btn" type="button" disabled title="3단계(캡처)에서 구현">공유 시작</button>
+    <button class="btn" type="button" disabled title="3단계(캡처)에서 구현">캘리브레이션</button>
+    <button class="btn" type="button" id="btnSettings">설정</button>
+  </div>
+</header>
+
+<main class="layout">
+  <section class="panel" aria-labelledby="boardTitle">
+    <div class="panel-head">
+      <h2 id="boardTitle">판 <small>10 × 16</small></h2>
+      <div class="tools" role="radiogroup" aria-label="편집 도구" id="tools">
+        <button class="tool" type="button" role="radio" data-tool="fill"><i class="sw fill"></i>칸 채우기</button>
+        <button class="tool" type="button" role="radio" data-tool="dot"><i class="sw dot"></i>점 찍기 아이콘</button>
+        <button class="tool" type="button" role="radio" data-tool="swap"><i class="sw swap"></i>바꿔 뽑기 아이콘</button>
+      </div>
+      <span class="spacer"></span>
+      <button class="btn sm ghost" type="button" id="btnClearBoard">판 비우기</button>
+    </div>
+    <div class="canvas-wrap"><canvas id="board" aria-label="게임 판 편집기"></canvas></div>
+    <p class="hint board-note" id="boardNote"></p>
+  </section>
+
+  <div class="side">
+    <section class="panel" aria-labelledby="handTitle">
+      <div class="panel-head"><h2 id="handTitle">손패 <small>눌러서 모양 입력</small></h2></div>
+      <div class="hand" id="hand"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="abTitle">
+      <div class="panel-head"><h2 id="abTitle">능력 · 진행</h2></div>
+      <div class="steppers" id="steppers"></div>
+      <p class="ab-summary" id="abSummary"></p>
+    </section>
+
+    <section class="panel" aria-labelledby="recoTitle">
+      <div class="panel-head"><h2 id="recoTitle">추천</h2></div>
+      <div class="reco-empty" id="reco"></div>
+    </section>
+
+    <details class="panel debug">
+      <summary>디버그 · 상태</summary>
+      <pre id="debugState"></pre>
+      <div class="row-btns">
+        <button class="btn sm" type="button" id="btnCopyState">상태 JSON 복사</button>
+      </div>
+      <textarea id="stateInput" spellcheck="false" placeholder="상태 JSON을 붙여 넣고 '적용'을 누르면 판·손패·능력이 바뀝니다."></textarea>
+      <div class="row-btns">
+        <button class="btn sm" type="button" id="btnApplyState">적용</button>
+      </div>
+    </details>
+  </div>
+</main>
+
+<div class="backdrop" id="backdrop" hidden></div>
+<aside class="drawer" id="drawer" hidden aria-labelledby="drawerTitle">
+  <div class="drawer-head">
+    <h2 id="drawerTitle">설정</h2>
+    <span class="spacer"></span>
+    <button class="btn sm" type="button" id="btnCloseDrawer">닫기</button>
+  </div>
+  <div id="settingsBody"></div>
+  <div class="group">
+    <h3>조각 사전</h3>
+    <span class="hint">4단계에서 손패 인식 결과를 쌓습니다. JSON으로 옮길 수 있습니다.</span>
+    <div class="kv"><span>저장된 조각</span><span id="dictCount">0종</span></div>
+    <div class="row-btns">
+      <button class="btn sm" type="button" id="btnDictExport">내보내기</button>
+      <button class="btn sm" type="button" id="btnDictImport">가져오기</button>
+      <input type="file" id="dictFile" accept="application/json,.json" hidden />
+    </div>
+  </div>
+  <div class="group">
+    <h3>캘리브레이션</h3>
+    <div class="kv"><span>판 영역</span><span id="calBoard">없음</span></div>
+    <div class="kv"><span>손패 영역</span><span id="calHand">없음</span></div>
+    <div class="kv"><span>빈 판 기준색</span><span id="calBase">없음</span></div>
+  </div>
+  <div class="group">
+    <button class="btn sm" type="button" id="btnResetSettings">설정을 기본값으로</button>
+  </div>
+</aside>
+
+<dialog class="dialog" id="pieceDialog" aria-labelledby="pdTitle">
+  <form method="dialog">
+    <h3 id="pdTitle">손패 편집</h3>
+    <div class="edit-grid" id="editGrid"></div>
+    <p class="pd-info" id="pdInfo"></p>
+    <label class="field"><span class="f-label">이름</span><input type="text" id="pdName" maxlength="8" placeholder="선택 · 예) ㅏ" autocomplete="off" /></label>
+    <div class="pd-actions">
+      <button class="btn sm ghost" type="button" id="pdClear">비우기</button>
+      <span class="spacer"></span>
+      <button class="btn sm" value="cancel" formnovalidate>취소</button>
+      <button class="btn sm primary" value="save">저장</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+'use strict';
+
+/* ================================================================
+ * config — 규칙, 기본 가중치, 상수. 미확인 규칙은 여기서만 바꾼다.
+ * ================================================================ */
+const config = (() => {
+  const RULES = {
+    rows: 16,
+    cols: 10,
+    placeScorePerCell: 1,                     // 배치 점수 = 놓은 칸 수 (확인)
+    lineScore: [0, 300, 1200, 2700, 4800, 7500], // 인덱스 = 동시에 지운 줄 수, 300 × n² (확인)
+    lineScoreBase: 300,                       // 표 밖의 줄 수는 base × n²
+    gravity: false,                           // 줄 삭제 후 위 칸은 내려오지 않음 (확인)
+    handSize: 3,                              // 3개를 모두 놓아야 리필 (확인)
+    keepUnusedPieces: true,                   // 일부만 쓰고 멈추면 남은 조각 유지 (미확인)
+    abilityCap: 7,                            // 능력 보유 한도 (확인)
+    abilityScore: 50,                         // 능력 획득 점수 (확인)
+    abilityOdds: { dot: 0.4, swap: 0.6 },     // 능력 종류 확률 (확인)
+    abilityEvery: null,                       // 아이콘 칸이 생기는 배치 주기 (미확인, null = 모름)
+    stageThresholds: [0, 31, 61, 101, 151],   // 단계가 시작되는 제거 줄 누적 수 (확인)
+  };
+
+  // 평가 함수 시작값 (기획서 6장). 6단계 시뮬레이터로 조정한다.
+  const WEIGHTS = [
+    { key: 'score',          value: 1,     label: '획득 점수',         desc: '배치 칸 수 + 줄 삭제 점수에 곱함' },
+    { key: 'deadCell',       value: -150,  label: '죽은 칸',           desc: '상하좌우가 모두 막힌 빈칸, 칸당' },
+    { key: 'narrowGap',      value: -60,   label: '좁은 틈',           desc: '가로로 1칸만 빈 곳, 곳당' },
+    { key: 'nearFull8',      value: 80,    label: '거의 찬 줄 (8칸)',  desc: '행당' },
+    { key: 'nearFull9',      value: 160,   label: '거의 찬 줄 (9칸)',  desc: '행당' },
+    { key: 'verticalStack',  value: 120,   label: '세로 정렬',         desc: '거의 찬 줄이 위아래로 연속, 줄당' },
+    { key: 'unplaceable',    value: -400,  label: '배치 불가 조각',    desc: '사전 조각 중 놓을 곳 없는 것, 종당' },
+    { key: 'abilityGain',    value: 100,   label: '능력 획득',         desc: '지우는 줄의 아이콘, 개당' },
+    { key: 'abilityHeld',    value: 100,   label: '능력 보유',         desc: '보유 1개당 (생존 우선)' },
+    { key: 'stuckNoAbility', value: -2000, label: '막힘 (능력 0개)',   desc: '능력 없이 놓을 수 없는 조각이 생김' },
+  ];
+
+  const SOLVER = { budgetMs: 700, beamWidth: 32, thetaDot: 300, thetaSwap: 300 };
+
+  // 인식 임계값은 실제 화면에서 정한다. 아래는 슬라이더의 시작 위치일 뿐이다.
+  const RECOG = { tFill: 15, tGloss: 30 };
+
+  const SETTINGS_VERSION = 1;
+
+  function clone(v) { return JSON.parse(JSON.stringify(v)); }
+
+  function defaultSettings() {
+    return {
+      version: SETTINGS_VERSION,
+      boardRect: null,
+      handRects: [null, null, null],
+      baseline: null,
+      tFill: RECOG.tFill,
+      tGloss: RECOG.tGloss,
+      rules: clone(RULES),
+      weights: Object.fromEntries(WEIGHTS.map(w => [w.key, w.value])),
+      solver: clone(SOLVER),
+    };
+  }
+
+  function lineScore(rules, n) {
+    return n < rules.lineScore.length ? rules.lineScore[n] : rules.lineScoreBase * n * n;
+  }
+
+  // 제거한 줄 누적 수 → 단계(1부터)
+  function stageOf(rules, clearedLines) {
+    let s = 0;
+    for (const t of rules.stageThresholds) if (clearedLines >= t) s++;
+    return Math.max(1, s);
+  }
+
+  function stageRange(rules, stage) {
+    const t = rules.stageThresholds;
+    const lo = t[stage - 1] ?? 0;
+    const hi = t[stage];
+    return hi === undefined ? `${lo}줄 이상` : `${lo}~${hi - 1}줄`;
+  }
+
+  return { RULES, WEIGHTS, SOLVER, RECOG, SETTINGS_VERSION, clone, defaultSettings, lineScore, stageOf, stageRange };
+})();
+
+/* ================================================================
+ * storage — 모든 접근을 try/catch로 감싸고 비어 있어도 동작
+ * ================================================================ */
+const storage = (() => {
+  const KEYS = { settings: 'hmm.settings.v1', dict: 'hmm.dict.v1', demo: 'hmm.demo.v1' };
+
+  function load(key) {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw == null ? null : JSON.parse(raw);
+    } catch { return null; }
+  }
+  function save(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; }
+  }
+  function remove(key) {
+    try { localStorage.removeItem(key); } catch { /* 저장소를 못 쓰면 지울 것도 없다 */ }
+  }
+
+  const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+  // 저장값을 기본값 모양에 맞춰 합친다. 새 버전에 생긴 키는 기본값으로 채우고, 타입이 다른 값은 버린다.
+  function mergeDefaults(def, saved) {
+    if (saved === undefined) return def;
+    if (def === null) return saved;
+    if (Array.isArray(def)) return Array.isArray(saved) ? saved : def;
+    if (isObj(def)) {
+      if (!isObj(saved)) return def;
+      const out = { ...saved };
+      for (const k of Object.keys(def)) out[k] = mergeDefaults(def[k], saved[k]);
+      return out;
+    }
+    return typeof saved === typeof def ? saved : def;
+  }
+
+  function loadSettings() {
+    const def = config.defaultSettings();
+    const saved = load(KEYS.settings);
+    if (!isObj(saved) || saved.version !== config.SETTINGS_VERSION) return def;
+    return mergeDefaults(def, saved);
+  }
+
+  return { KEYS, load, save, remove, mergeDefaults, loadSettings };
+})();
+
+/* ================================================================
+ * pieces — 칸 좌표 정규화와 판 비트 연산.
+ * 방향 8가지 생성과 조각 사전 정규화는 2단계에서 추가한다.
+ * ================================================================ */
+const pieces = (() => {
+  const EDIT_SIZE = 6;
+
+  function popcount(x) {
+    let n = 0;
+    while (x) { x &= x - 1; n++; }
+    return n;
+  }
+
+  const getBit = (rows, r, c) => (rows[r] >> c) & 1;
+  function setBit(rows, r, c, on) {
+    if (on) rows[r] |= 1 << c;
+    else rows[r] &= ~(1 << c);
+  }
+
+  // 좌상단을 (0,0)에 맞추고 정렬·중복 제거
+  function normalizeCells(cells) {
+    if (!cells.length) return [];
+    const minR = Math.min(...cells.map(p => p[0]));
+    const minC = Math.min(...cells.map(p => p[1]));
+    const seen = new Set();
+    const out = [];
+    for (const [r, c] of cells) {
+      const k = (r - minR) * 64 + (c - minC);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push([r - minR, c - minC]);
+    }
+    return out.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  }
+
+  function bbox(cells) {
+    if (!cells.length) return { h: 0, w: 0 };
+    return {
+      h: Math.max(...cells.map(p => p[0])) + 1,
+      w: Math.max(...cells.map(p => p[1])) + 1,
+    };
+  }
+
+  // 상하좌우로 이어진 한 덩어리인지
+  function isConnected(cells) {
+    if (cells.length <= 1) return true;
+    const key = (r, c) => r * 64 + c;
+    const all = new Set(cells.map(([r, c]) => key(r, c)));
+    const seen = new Set([key(...cells[0])]);
+    const stack = [cells[0]];
+    while (stack.length) {
+      const [r, c] = stack.pop();
+      for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const k = key(r + dr, c + dc);
+        if (all.has(k) && !seen.has(k)) { seen.add(k); stack.push([r + dr, c + dc]); }
+      }
+    }
+    return seen.size === all.size;
+  }
+
+  return { EDIT_SIZE, popcount, getBit, setBit, normalizeCells, bbox, isConnected };
+})();
+
+/* ================================================================
+ * ui — 렌더링, 데모 입력, 설정 서랍
+ * ================================================================ */
+const ui = (() => {
+  const { RULES } = config;
+  const ROWS = RULES.rows, COLS = RULES.cols, FULL = (1 << COLS) - 1;
+  const $ = (sel, el = document) => el.querySelector(sel);
+
+  let settings;
+  let demo;
+  let dict;
+  let tool = 'fill';
+
+  // 빠르게 드래그하면 포인터 이벤트 사이에 칸이 빠지므로, 두 칸 사이를 직선으로 잇는 칸들을 돌려준다.
+  function cellsBetween(a, b) {
+    const n = Math.max(Math.abs(b.r - a.r), Math.abs(b.c - a.c));
+    const out = [];
+    for (let i = 1; i <= n; i++) {
+      out.push({ r: Math.round(a.r + (b.r - a.r) * i / n), c: Math.round(a.c + (b.c - a.c) * i / n) });
+    }
+    return out;
+  }
+
+  function debounce(fn, ms) {
+    let t = null;
+    const run = () => { t = null; fn(); };
+    const d = () => { clearTimeout(t); t = setTimeout(run, ms); };
+    d.flush = () => { if (t !== null) { clearTimeout(t); run(); } };
+    return d;
+  }
+
+  let warnedStorage = false;
+  function persist(key, value) {
+    if (!storage.save(key, value) && !warnedStorage) {
+      warnedStorage = true;
+      toast('브라우저 저장소를 쓸 수 없어 새로고침하면 입력이 사라집니다.');
+    }
+  }
+  const saveSettings = debounce(() => persist(storage.KEYS.settings, settings), 250);
+  const saveDemo = debounce(() => persist(storage.KEYS.demo, demo), 250);
+  addEventListener('pagehide', () => { saveSettings.flush(); saveDemo.flush(); });
+
+  let toastTimer = null;
+  function toast(msg) {
+    const el = $('#toast');
+    el.textContent = msg;
+    el.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.hidden = true; }, 2600);
+  }
+
+  /* ---------- 데모 상태 ---------- */
+
+  function emptyDemo() {
+    return {
+      board: new Array(ROWS).fill(0),
+      items: { dot: new Array(ROWS).fill(0), swap: new Array(ROWS).fill(0) },
+      hand: [null, null, null],
+      abilities: { dot: 0, swap: 0, untilNext: 0 },
+      clearedLines: 0,
+    };
+  }
+
+  const toInt = (v, max) => Math.min(max, Math.max(0, Math.floor(Number(v)) || 0));
+  // 판 밖 열의 비트는 버린다 (값을 자르면 엉뚱하게 꽉 찬 줄이 된다)
+  const toRows = v => Array.from({ length: ROWS }, (_, i) => (Array.isArray(v) ? toInt(v[i], 2 ** 30) : 0) & FULL);
+
+  function sanitizePiece(p) {
+    if (!p || !Array.isArray(p.cells)) return null;
+    const cells = pieces.normalizeCells(
+      p.cells.filter(x => Array.isArray(x) && x.length === 2 && x.every(n => Number.isInteger(n) && n >= 0 && n < pieces.EDIT_SIZE)),
+    );
+    if (!cells.length) return null;
+    const name = typeof p.name === 'string' ? p.name.trim().slice(0, 8) : '';
+    return name ? { cells, name } : { cells };
+  }
+
+  // 저장값이나 붙여 넣은 JSON을 데모 상태로 바꾼다. 모르는 값은 버린다.
+  function sanitizeDemo(v) {
+    const d = emptyDemo();
+    if (!v || typeof v !== 'object') return d;
+    d.board = toRows(v.board);
+    d.items.dot = toRows(v.items?.dot);
+    d.items.swap = toRows(v.items?.swap);
+    if (Array.isArray(v.hand)) d.hand = [0, 1, 2].map(i => sanitizePiece(v.hand[i]));
+    d.abilities.dot = toInt(v.abilities?.dot, 99);
+    d.abilities.swap = toInt(v.abilities?.swap, 99);
+    d.abilities.untilNext = toInt(v.abilities?.untilNext, 99);
+    d.clearedLines = toInt(v.clearedLines, 9999);
+    return d;
+  }
+
+  function demoChanged() {
+    saveDemo();
+    renderDemo();
+  }
+
+  function renderDemo() {
+    renderBoard();
+    renderAbilities();
+    renderReco();
+    renderDebug();
+  }
+
+  /* ---------- 판 캔버스 ---------- */
+
+  const G = { cs: 30, left: 30, top: 24, right: 38, bottom: 6 };
+  const BW = G.left + COLS * G.cs + G.right;
+  const BH = G.top + ROWS * G.cs + G.bottom;
+  const COLORS = {
+    frame: '#14585F', empty: '#1F7B84', emptyEdge: '#2A8E97',
+    block: '#F27BA7', blockEdge: '#B94F78', gloss: 'rgba(255,255,255,.85)',
+    dot: '#4A7DFF', swap: '#C47CF2', full: '#F3C969', hover: 'rgba(255,255,255,.75)',
+    label: '#687084', count9: '#F3C969', count8: '#9FE3B5',
+  };
+
+  let canvas, ctx;
+  let hover = null;
+  let drag = null;
+
+  function setupBoard() {
+    canvas = $('#board');
+    ctx = canvas.getContext('2d');
+    const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    canvas.width = BW * dpr;
+    canvas.height = BH * dpr;
+    canvas.style.width = BW + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    canvas.addEventListener('pointerdown', e => {
+      const cell = cellAt(e);
+      if (!cell || e.button !== 0) return;
+      const layer = tool === 'fill' ? demo.board : demo.items[tool];
+      drag = { layer, on: !pieces.getBit(layer, cell.r, cell.c), last: null };
+      canvas.setPointerCapture(e.pointerId);
+      paint(cell);
+    });
+    canvas.addEventListener('pointermove', e => {
+      const cell = cellAt(e);
+      const k = cell ? cell.r * COLS + cell.c : -1;
+      if (drag && cell && (cell.r !== drag.last.r || cell.c !== drag.last.c)) {
+        for (const p of cellsBetween(drag.last, cell)) paint(p);
+      }
+      if ((hover ? hover.r * COLS + hover.c : -1) !== k) { hover = cell; renderBoard(); }
+    });
+    const end = () => { if (drag) { drag = null; demoChanged(); } };
+    canvas.addEventListener('pointerup', end);
+    canvas.addEventListener('pointercancel', end);
+    canvas.addEventListener('pointerleave', () => { if (!drag && hover) { hover = null; renderBoard(); } });
+
+    for (const btn of document.querySelectorAll('#tools .tool')) {
+      btn.addEventListener('click', () => { tool = btn.dataset.tool; renderTools(); });
+    }
+    $('#btnClearBoard').addEventListener('click', () => {
+      const fresh = emptyDemo();
+      demo.board = fresh.board;
+      demo.items = fresh.items;
+      demoChanged();
+    });
+  }
+
+  function paint(cell) {
+    pieces.setBit(drag.layer, cell.r, cell.c, drag.on);
+    drag.last = cell;
+    renderBoard();
+  }
+
+  function cellAt(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (BW / rect.width) - G.left;
+    const y = (e.clientY - rect.top) * (BH / rect.height) - G.top;
+    const c = Math.floor(x / G.cs), r = Math.floor(y / G.cs);
+    return r >= 0 && r < ROWS && c >= 0 && c < COLS ? { r, c } : null;
+  }
+
+  function roundRect(x, y, w, h, rad) {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, rad);
+  }
+
+  function drawEmpty(x, y) {
+    const s = G.cs;
+    roundRect(x + 1.5, y + 1.5, s - 3, s - 3, 4);
+    ctx.fillStyle = COLORS.empty;
+    ctx.fill();
+    ctx.strokeStyle = COLORS.emptyEdge;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // 게임의 조각 칸처럼 좌상단에 광택 반점을 그린다.
+  function drawBlock(x, y) {
+    const s = G.cs;
+    roundRect(x + 1, y + 1, s - 2, s - 2, 5);
+    ctx.fillStyle = COLORS.block;
+    ctx.fill();
+    ctx.strokeStyle = COLORS.blockEdge;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    roundRect(x + s * 0.16, y + s * 0.16, s * 0.2, s * 0.2, 2);
+    ctx.fillStyle = COLORS.gloss;
+    ctx.fill();
+  }
+
+  function drawDotIcon(x, y) {
+    const cx = x + G.cs / 2, cy = y + G.cs / 2;
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = COLORS.dot;
+    for (const rad of [9, 5]) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.arc(cx, cy, 2, 0, Math.PI * 2);
+    ctx.fillStyle = COLORS.dot;
+    ctx.fill();
+  }
+
+  function drawSwapIcon(x, y) {
+    const cx = x + G.cs / 2, cy = y + G.cs / 2;
+    ctx.strokeStyle = COLORS.swap;
+    ctx.fillStyle = COLORS.swap;
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    for (const [dy, dir] of [[-4, 1], [4, -1]]) {
+      const tip = cx + 8 * dir, tail = cx - 8 * dir;
+      ctx.beginPath();
+      ctx.moveTo(tail, cy + dy);
+      ctx.lineTo(tip - 3 * dir, cy + dy);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(tip, cy + dy);
+      ctx.lineTo(tip - 5 * dir, cy + dy - 4);
+      ctx.lineTo(tip - 5 * dir, cy + dy + 4);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.lineCap = 'butt';
+  }
+
+  function renderBoard() {
+    const s = G.cs;
+    ctx.clearRect(0, 0, BW, BH);
+
+    roundRect(G.left - 4, G.top - 4, COLS * s + 8, ROWS * s + 8, 8);
+    ctx.fillStyle = COLORS.frame;
+    ctx.fill();
+
+    ctx.font = `11px ${getComputedStyle(document.body).getPropertyValue('--mono')}`;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = COLORS.label;
+    for (let c = 0; c < COLS; c++) ctx.fillText(String(c + 1), G.left + c * s + s / 2, G.top / 2 - 2);
+
+    for (let r = 0; r < ROWS; r++) {
+      const y = G.top + r * s;
+      ctx.textAlign = 'right';
+      ctx.fillStyle = COLORS.label;
+      ctx.fillText(String(r + 1), G.left - 8, y + s / 2);
+
+      for (let c = 0; c < COLS; c++) {
+        const x = G.left + c * s;
+        if (pieces.getBit(demo.board, r, c)) drawBlock(x, y); else drawEmpty(x, y);
+        if (pieces.getBit(demo.items.dot, r, c)) drawDotIcon(x, y);
+        if (pieces.getBit(demo.items.swap, r, c)) drawSwapIcon(x, y);
+      }
+
+      const n = pieces.popcount(demo.board[r]);
+      ctx.textAlign = 'left';
+      ctx.fillStyle = n === COLS ? COLORS.full : n === 9 ? COLORS.count9 : n === 8 ? COLORS.count8 : COLORS.label;
+      ctx.fillText(n === COLS ? '꽉' : String(n), G.left + COLS * s + 10, y + s / 2);
+
+      if (demo.board[r] === FULL) {
+        ctx.strokeStyle = COLORS.full;
+        ctx.lineWidth = 2;
+        roundRect(G.left - 1, y + 1, COLS * s + 2, s - 2, 5);
+        ctx.stroke();
+      }
+    }
+
+    if (hover) {
+      ctx.strokeStyle = COLORS.hover;
+      ctx.lineWidth = 2;
+      roundRect(G.left + hover.c * s + 1, G.top + hover.r * s + 1, s - 2, s - 2, 5);
+      ctx.stroke();
+    }
+
+    const filled = demo.board.reduce((a, row) => a + pieces.popcount(row), 0);
+    const fullRows = demo.board.filter(row => row === FULL).length;
+    const note = $('#boardNote');
+    note.classList.toggle('warn', fullRows > 0);
+    note.textContent = fullRows
+      ? `가득 찬 줄이 ${fullRows}개 있습니다. 실제 게임에서는 바로 지워지는 상태입니다.`
+      : `채운 칸 ${filled} / ${ROWS * COLS} · 칸을 누르거나 드래그해서 바꿉니다.`;
+  }
+
+  function renderTools() {
+    for (const btn of document.querySelectorAll('#tools .tool')) {
+      btn.setAttribute('aria-checked', String(btn.dataset.tool === tool));
+    }
+  }
+
+  /* ---------- 손패 ---------- */
+
+  function miniGrid(cells) {
+    const box = document.createElement('div');
+    box.className = 'mini-box';
+    if (!cells) {
+      box.innerHTML = '<span class="mini-empty">비어 있음</span>';
+      return box;
+    }
+    const { h, w } = pieces.bbox(cells);
+    const on = new Set(cells.map(([r, c]) => r * 64 + c));
+    const grid = document.createElement('div');
+    grid.className = 'mini';
+    grid.style.gridTemplateColumns = `repeat(${w}, 10px)`;
+    for (let r = 0; r < h; r++) {
+      for (let c = 0; c < w; c++) {
+        const sp = document.createElement('span');
+        if (on.has(r * 64 + c)) sp.className = 'on';
+        grid.append(sp);
+      }
+    }
+    box.append(grid);
+    return box;
+  }
+
+  function renderHand() {
+    const wrap = $('#hand');
+    wrap.replaceChildren(...demo.hand.map((p, i) => {
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'hand-card';
+      card.setAttribute('aria-label', `손패 ${i + 1}번 편집`);
+      const idx = document.createElement('span');
+      idx.className = 'hc-idx';
+      idx.textContent = `${i + 1}`;
+      const meta = document.createElement('span');
+      meta.className = 'hc-meta';
+      if (p) {
+        const b = document.createElement('b');
+        b.textContent = p.name || '이름 없음';
+        meta.append(b, ` · ${p.cells.length}칸`);
+      } else {
+        meta.textContent = '눌러서 입력';
+      }
+      card.append(idx, miniGrid(p?.cells), meta);
+      card.addEventListener('click', () => openEditor(i));
+      return card;
+    }));
+  }
+
+  /* ---------- 조각 편집 (6×6) ---------- */
+
+  const editor = { idx: 0, on: new Set(), painting: null, last: null };
+
+  function setupDialog() {
+    const grid = $('#editGrid');
+    const N = pieces.EDIT_SIZE;
+    for (let r = 0; r < N; r++) {
+      for (let c = 0; c < N; c++) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'ec';
+        b.dataset.k = String(r * 64 + c);
+        b.setAttribute('aria-label', `${r + 1}행 ${c + 1}열`);
+        // 키보드(Enter/Space)로 누를 때만 click으로 처리. 마우스·터치는 포인터 칠하기가 맡는다.
+        b.addEventListener('click', e => { if (e.detail === 0) setEditCell(Number(b.dataset.k), !editor.on.has(Number(b.dataset.k))); });
+        grid.append(b);
+      }
+    }
+    const cellFrom = e => document.elementFromPoint(e.clientX, e.clientY)?.closest('.ec');
+    grid.addEventListener('pointerdown', e => {
+      const el = cellFrom(e);
+      if (!el || e.button !== 0) return;
+      e.preventDefault();
+      const k = Number(el.dataset.k);
+      editor.painting = !editor.on.has(k);
+      editor.last = { r: Math.floor(k / 64), c: k % 64 };
+      grid.setPointerCapture(e.pointerId);
+      setEditCell(k, editor.painting);
+    });
+    grid.addEventListener('pointermove', e => {
+      if (editor.painting === null) return;
+      const el = cellFrom(e);
+      if (!el) return;
+      const k = Number(el.dataset.k);
+      const cell = { r: Math.floor(k / 64), c: k % 64 };
+      for (const p of cellsBetween(editor.last, cell)) setEditCell(p.r * 64 + p.c, editor.painting);
+      editor.last = cell;
+    });
+    const stop = () => { editor.painting = null; };
+    grid.addEventListener('pointerup', stop);
+    grid.addEventListener('pointercancel', stop);
+
+    $('#pdClear').addEventListener('click', () => { editor.on.clear(); renderEditor(); });
+    // 이름 칸에서 Enter를 누르면 첫 제출 버튼(취소)이 아니라 저장으로 처리
+    $('#pdName').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); $('#pieceDialog button[value="save"]').click(); }
+    });
+
+    // close 이벤트는 비동기라 화면이 그려지지 않는 동안 늦게 올 수 있어, 제출 시점에 바로 반영한다.
+    $('#pieceDialog form').addEventListener('submit', e => {
+      if (e.submitter?.value !== 'save') return;
+      const cells = pieces.normalizeCells([...editor.on].map(k => [Math.floor(k / 64), k % 64]));
+      demo.hand[editor.idx] = sanitizePiece({ cells, name: $('#pdName').value });
+      renderHand();
+      demoChanged();
+    });
+  }
+
+  function setEditCell(k, on) {
+    if (on) editor.on.add(k); else editor.on.delete(k);
+    renderEditor();
+  }
+
+  function openEditor(i) {
+    editor.idx = i;
+    const p = demo.hand[i];
+    editor.on = new Set((p?.cells ?? []).map(([r, c]) => r * 64 + c));
+    $('#pdTitle').textContent = `손패 ${i + 1}번 편집`;
+    $('#pdName').value = p?.name ?? '';
+    renderEditor();
+    $('#pieceDialog').showModal();
+  }
+
+  function renderEditor() {
+    for (const b of document.querySelectorAll('#editGrid .ec')) {
+      const on = editor.on.has(Number(b.dataset.k));
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', String(on));
+    }
+    const cells = [...editor.on].map(k => [Math.floor(k / 64), k % 64]);
+    const info = $('#pdInfo');
+    const connected = pieces.isConnected(cells);
+    info.classList.toggle('warn', !connected);
+    if (!cells.length) info.textContent = '칸을 눌러 모양을 그립니다. 비워 두고 저장하면 손패가 빕니다.';
+    else if (!connected) info.textContent = `${cells.length}칸 · 떨어진 칸이 있습니다. 조각은 한 덩어리여야 합니다.`;
+    else {
+      const { h, w } = pieces.bbox(pieces.normalizeCells(cells));
+      info.textContent = `${cells.length}칸 · 가로 ${w} × 세로 ${h}`;
+    }
+  }
+
+  /* ---------- 능력 · 진행 ---------- */
+
+  const STEPPERS = [
+    { key: 'dot',          label: '점 찍기',       icon: 'dot',  max: 99 },
+    { key: 'swap',         label: '바꿔 뽑기',     icon: 'swap', max: 99 },
+    { key: 'untilNext',    label: '다음 능력까지', max: 99 },
+    { key: 'clearedLines', label: '제거한 줄 수',  max: 9999 },
+  ];
+  const stepGet = key => key === 'clearedLines' ? demo.clearedLines : demo.abilities[key];
+  function stepSet(key, v) {
+    if (key === 'clearedLines') demo.clearedLines = v; else demo.abilities[key] = v;
+  }
+
+  function setupAbilities() {
+    const wrap = $('#steppers');
+    for (const s of STEPPERS) {
+      const row = document.createElement('div');
+      row.className = 'stepper';
+      const id = `st-${s.key}`;
+      row.innerHTML = `
+        <label for="${id}">${s.icon ? `<i class="sw ${s.icon}"></i>` : ''}${s.label}</label>
+        <button type="button" data-d="-1" aria-label="${s.label} 1 줄이기">−</button>
+        <input type="number" id="${id}" min="0" max="${s.max}" step="1" inputmode="numeric" />
+        <button type="button" data-d="1" aria-label="${s.label} 1 늘리기">+</button>`;
+      const input = $('input', row);
+      const commit = v => {
+        stepSet(s.key, Math.min(s.max, Math.max(0, v)));
+        demoChanged();
+      };
+      for (const b of row.querySelectorAll('button')) {
+        b.addEventListener('click', () => commit(stepGet(s.key) + Number(b.dataset.d)));
+      }
+      input.addEventListener('change', () => commit(Math.floor(Number(input.value)) || 0));
+      wrap.append(row);
+    }
+  }
+
+  function renderAbilities() {
+    for (const s of STEPPERS) {
+      const input = $(`#st-${s.key}`);
+      if (document.activeElement !== input) input.value = String(stepGet(s.key));
+    }
+    const r = settings.rules;
+    const held = demo.abilities.dot + demo.abilities.swap;
+    const stage = config.stageOf(r, demo.clearedLines);
+    const sum = $('#abSummary');
+    sum.innerHTML = '';
+    const heldEl = document.createElement('span');
+    heldEl.textContent = `보유 ${held} / ${r.abilityCap}`;
+    if (held > r.abilityCap) heldEl.className = 'over';
+    sum.append(heldEl, ` · ${stage}단계 (${config.stageRange(r, stage)})`);
+  }
+
+  /* ---------- 추천 (2단계에서 솔버 연결) ---------- */
+
+  function renderReco() {
+    const handCount = demo.hand.filter(Boolean).length;
+    $('#reco').innerHTML = `
+      <p>솔버는 2단계에서 연결됩니다.</p>
+      <p>지금 입력된 손패 ${handCount} / ${RULES.handSize}개</p>`;
+  }
+
+  /* ---------- 디버그 ---------- */
+
+  function exportState() {
+    return { board: demo.board, items: demo.items, hand: demo.hand, abilities: demo.abilities, clearedLines: demo.clearedLines };
+  }
+
+  function renderDebug() {
+    const lines = demo.board.map((row, r) => {
+      let s = '';
+      for (let c = 0; c < COLS; c++) {
+        const icon = pieces.getBit(demo.items.dot, r, c) ? 'o' : pieces.getBit(demo.items.swap, r, c) ? 'x' : null;
+        s += pieces.getBit(demo.board, r, c) ? (icon ? icon.toUpperCase() : '■') : (icon ?? '·');
+      }
+      return `${String(r + 1).padStart(2)} ${s}  0x${row.toString(16).toUpperCase().padStart(3, '0')}`;
+    });
+    lines.push('', 'o/O 점 찍기 아이콘 · x/X 바꿔 뽑기 아이콘 (대문자 = 찬 칸)');
+    $('#debugState').textContent = lines.join('\n');
+  }
+
+  function setupDebug() {
+    $('#btnCopyState').addEventListener('click', async () => {
+      const text = JSON.stringify(exportState());
+      try {
+        await navigator.clipboard.writeText(text);
+        toast('상태 JSON을 복사했습니다.');
+      } catch {
+        $('#stateInput').value = text;
+        toast('클립보드를 쓸 수 없어 아래 입력칸에 넣었습니다.');
+      }
+    });
+    $('#btnApplyState').addEventListener('click', () => {
+      let parsed;
+      try { parsed = JSON.parse($('#stateInput').value); } catch {
+        toast('JSON 형식이 아닙니다.');
+        return;
+      }
+      demo = sanitizeDemo(parsed);
+      renderHand();
+      demoChanged();
+      toast('상태를 적용했습니다.');
+    });
+  }
+
+  /* ---------- 설정 서랍 ---------- */
+
+  const num = (path, label, desc, extra = {}) => ({ path, label, desc, kind: 'number', ...extra });
+  const SETTINGS_FIELDS = [
+    {
+      title: '인식',
+      note: '실제 화면이 있어야 정해지는 값입니다. 4단계에서 히트맵을 보며 맞춥니다.',
+      fields: [
+        { path: 'tFill', label: 'T_fill', desc: '빈 판 기준과의 Lab 색차', kind: 'range', min: 0, max: 60, step: 0.5 },
+        { path: 'tGloss', label: 'T_gloss', desc: '좌상단 광택과 중앙의 밝기 차', kind: 'range', min: 0, max: 120, step: 1 },
+      ],
+    },
+    {
+      title: '탐색',
+      fields: [
+        num('solver.budgetMs', '시간 예산', 'ms', { min: 50, max: 10000, int: true }),
+        num('solver.beamWidth', '빔 폭', '시작값, 예산 안에서 늘려 감', { min: 1, max: 4096, int: true }),
+        num('solver.thetaDot', 'θ_dot', '점 찍기를 추천할 최소 이득'),
+        num('solver.thetaSwap', 'θ_swap', '바꿔 뽑기를 추천할 최소 이득'),
+      ],
+    },
+    {
+      title: '평가 가중치',
+      note: '기획서의 시작값입니다. 6단계 시뮬레이터로 조정합니다.',
+      fields: config.WEIGHTS.map(w => num(`weights.${w.key}`, w.label, w.desc)),
+    },
+    {
+      title: '규칙 (RULES)',
+      note: '확인되지 않은 규칙에는 미확인 표시가 붙어 있습니다.',
+      fields: [
+        { path: 'rules.lineScore', label: '줄 삭제 점수표', desc: '쉼표 구분, 인덱스 = 동시에 지운 줄 수', kind: 'list' },
+        num('rules.lineScoreBase', '표 밖 줄 점수', 'base × n²', { min: 0 }),
+        num('rules.placeScorePerCell', '배치 점수', '놓은 칸 1개당', { min: 0 }),
+        num('rules.abilityCap', '능력 보유 한도', '', { min: 0, int: true }),
+        num('rules.abilityScore', '능력 획득 점수', '', { min: 0 }),
+        num('rules.abilityOdds.dot', '점 찍기 확률', '0~1', { min: 0, max: 1 }),
+        num('rules.abilityOdds.swap', '바꿔 뽑기 확률', '0~1', { min: 0, max: 1 }),
+        num('rules.abilityEvery', '아이콘 칸 생성 주기', '배치 횟수, 비우면 모름', { min: 1, int: true, nullable: true, unconfirmed: true }),
+        { path: 'rules.stageThresholds', label: '단계 시작 줄 수', desc: '쉼표 구분, 1단계부터', kind: 'list' },
+        { path: 'rules.keepUnusedPieces', label: '남은 조각 유지', desc: '일부만 쓰고 멈췄을 때', kind: 'bool', unconfirmed: true },
+      ],
+    },
+  ];
+
+  const getPath = (obj, path) => path.split('.').reduce((o, k) => o?.[k], obj);
+  function setPath(obj, path, value) {
+    const keys = path.split('.');
+    const last = keys.pop();
+    let o = obj;
+    for (const k of keys) o = o[k] ??= {};
+    o[last] = value;
+  }
+
+  function parseField(f, input) {
+    if (f.kind === 'bool') return { ok: true, value: input.checked };
+    if (f.kind === 'list') {
+      const parts = input.value.split(',').map(s => s.trim()).filter(Boolean).map(Number);
+      const ok = parts.length > 0 && parts.every(n => Number.isFinite(n) && n >= 0);
+      return { ok, value: parts };
+    }
+    const raw = input.value.trim();
+    if (raw === '' && f.nullable) return { ok: true, value: null };
+    const n = Number(raw);
+    const ok = raw !== '' && Number.isFinite(n)
+      && (!f.int || Number.isInteger(n))
+      && (f.min === undefined || n >= f.min)
+      && (f.max === undefined || n <= f.max);
+    return { ok, value: n };
+  }
+
+  function fieldValueText(f) {
+    const v = getPath(settings, f.path);
+    if (f.kind === 'list') return v.join(', ');
+    return v == null ? '' : String(v);
+  }
+
+  function buildSettings() {
+    const body = $('#settingsBody');
+    body.replaceChildren();
+    for (const g of SETTINGS_FIELDS) {
+      const sec = document.createElement('section');
+      sec.className = 'group';
+      const h = document.createElement('h3');
+      h.textContent = g.title;
+      sec.append(h);
+      if (g.note) {
+        const n = document.createElement('span');
+        n.className = 'hint';
+        n.textContent = g.note;
+        sec.append(n);
+      }
+      for (const f of g.fields) sec.append(buildField(f));
+      body.append(sec);
+    }
+    renderSettingsInfo();
+  }
+
+  function buildField(f) {
+    const row = document.createElement('label');
+    row.className = 'field' + (f.kind === 'range' ? ' range' : '');
+    const lab = document.createElement('span');
+    lab.className = 'f-label';
+    lab.textContent = f.label;
+    if (f.unconfirmed) {
+      const t = document.createElement('span');
+      t.className = 'tag';
+      t.textContent = '미확인';
+      lab.append(t);
+    }
+    if (f.desc) {
+      const d = document.createElement('span');
+      d.className = 'f-desc';
+      d.textContent = f.desc;
+      lab.append(d);
+    }
+
+    let ctl, input;
+    if (f.kind === 'range') {
+      ctl = document.createElement('span');
+      ctl.className = 'range-ctl';
+      input = document.createElement('input');
+      Object.assign(input, { type: 'range', min: f.min, max: f.max, step: f.step });
+      input.value = String(getPath(settings, f.path));
+      const out = document.createElement('output');
+      out.textContent = input.value;
+      input.addEventListener('input', () => {
+        out.textContent = input.value;
+        setPath(settings, f.path, Number(input.value));
+        saveSettings();
+      });
+      ctl.append(input, out);
+    } else if (f.kind === 'bool') {
+      ctl = input = document.createElement('input');
+      input.type = 'checkbox';
+      input.checked = Boolean(getPath(settings, f.path));
+      input.style.justifySelf = 'end';
+    } else {
+      ctl = input = document.createElement('input');
+      input.type = f.kind === 'list' ? 'text' : 'number';
+      if (f.kind === 'number') input.step = 'any';
+      input.value = fieldValueText(f);
+    }
+
+    if (f.kind !== 'range') {
+      input.addEventListener(f.kind === 'bool' ? 'change' : 'input', () => {
+        const { ok, value } = parseField(f, input);
+        input.classList.toggle('invalid', !ok);
+        if (!ok) return;
+        setPath(settings, f.path, value);
+        saveSettings();
+        renderAbilities();
+      });
+      // 잘못된 값을 남긴 채 떠나면 저장된 값으로 되돌린다
+      input.addEventListener('blur', () => {
+        if (!input.classList.contains('invalid')) return;
+        input.classList.remove('invalid');
+        input.value = fieldValueText(f);
+      });
+    }
+
+    row.append(lab, ctl);
+    return row;
+  }
+
+  function renderSettingsInfo() {
+    $('#dictCount').textContent = `${dict.pieces.length}종`;
+    const handSet = settings.handRects.filter(Boolean).length;
+    $('#calBoard').textContent = settings.boardRect ? '저장됨' : '없음';
+    $('#calHand').textContent = handSet ? `${handSet} / 3` : '없음';
+    $('#calBase').textContent = settings.baseline ? '저장됨' : '없음';
+  }
+
+  function loadDict() {
+    const d = storage.load(storage.KEYS.dict);
+    return d && Array.isArray(d.pieces) ? d : { version: 1, pieces: [] };
+  }
+
+  function setupDrawer() {
+    const drawer = $('#drawer'), backdrop = $('#backdrop');
+    const open = () => {
+      buildSettings();
+      drawer.hidden = backdrop.hidden = false;
+      $('#btnCloseDrawer').focus();
+    };
+    const close = () => {
+      if (drawer.hidden) return;
+      drawer.hidden = backdrop.hidden = true;
+      saveSettings.flush();
+      $('#btnSettings').focus();
+    };
+    $('#btnSettings').addEventListener('click', open);
+    $('#btnCloseDrawer').addEventListener('click', close);
+    backdrop.addEventListener('click', close);
+    addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+
+    $('#btnResetSettings').addEventListener('click', () => {
+      if (!confirm('인식·탐색·가중치·규칙 설정과 캘리브레이션을 기본값으로 되돌립니다. 데모 판과 조각 사전은 그대로입니다.')) return;
+      settings = config.defaultSettings();
+      saveSettings();
+      saveSettings.flush();
+      buildSettings();
+      renderAbilities();
+      toast('설정을 기본값으로 되돌렸습니다.');
+    });
+
+    $('#btnDictExport').addEventListener('click', () => {
+      const blob = new Blob([JSON.stringify(dict, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'hangul-moamoa-pieces.json';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    });
+    const file = $('#dictFile');
+    $('#btnDictImport').addEventListener('click', () => file.click());
+    file.addEventListener('change', async () => {
+      const f = file.files[0];
+      file.value = '';
+      if (!f) return;
+      try {
+        const d = JSON.parse(await f.text());
+        if (!d || !Array.isArray(d.pieces)) throw new Error('pieces 배열이 없음');
+        if (dict.pieces.length && !confirm(`지금 사전(${dict.pieces.length}종)을 가져온 사전(${d.pieces.length}종)으로 바꿉니다.`)) return;
+        dict = { version: 1, pieces: d.pieces };
+        persist(storage.KEYS.dict, dict);
+        renderSettingsInfo();
+        toast(`조각 사전 ${d.pieces.length}종을 가져왔습니다.`);
+      } catch {
+        toast('조각 사전 JSON을 읽지 못했습니다.');
+      }
+    });
+  }
+
+  /* ---------- 시작 ---------- */
+
+  function init() {
+    settings = storage.loadSettings();
+    demo = sanitizeDemo(storage.load(storage.KEYS.demo));
+    dict = loadDict();
+    setupBoard();
+    setupDialog();
+    setupAbilities();
+    setupDrawer();
+    setupDebug();
+    renderTools();
+    renderHand();
+    renderDemo();
+  }
+
+  return { init, get settings() { return settings; }, get demo() { return demo; }, get dict() { return dict; } };
+})();
+
+ui.init();
+// 콘솔·자동 검증용
+window.HMM = { config, storage, pieces, ui };
+</script>
+</body>
+</html>
