@@ -516,7 +516,7 @@ const config = (() => {
   };
 
   // 시뮬레이터 기본값. iconEvery는 미확인 규칙이라 시뮬레이션 가정값으로만 쓴다.
-  const SIM = { games: 20, maxTurns: 80, iconEvery: 7, beam: 4, seed: 1 };
+  const SIM = { games: 20, maxTurns: 80, iconEvery: 7, beam: 4, seed: 1, useAbilities: false };
 
   // 사용자가 보낸 조각 이미지(2026-10-03)에서 읽은 모양. X = 칸. 확인 필요 표시는 이미지가 작아 읽기가 불확실한 것.
   // 그 밖의 조각(초록 ㅍ 비슷한 것, 노란 넓은 십자 등)은 읽지 못해 넣지 않았다. 손패 편집으로 사전에 추가한다.
@@ -1069,7 +1069,7 @@ function coreFactory() {
     }
     if (cd.kind === 'dot') out.push(isFinite(cd.gain) && cd.gain > -1e8 ? `점 찍기를 쓰면 안 쓸 때보다 평가 +${fmt(cd.gain)}` : '놓을 자리가 없어 점 찍기로 자리를 만듭니다.');
     steps.forEach((st, i) => {
-      if (st.lines) out.push(`${i + 1}번째 수: ${st.lines}줄 동시 삭제 +${fmt(st.lineScore)}점`);
+      if (st.lines) out.push(`${i + 1}번째 수: ${st.lines}줄${st.lines > 1 ? " 동시" : ""} 삭제 +${fmt(st.lineScore)}점`);
       const got = [st.gotDot ? `점 찍기 ${st.gotDot}` : '', st.gotSwap ? `바꿔 뽑기 ${st.gotSwap}` : ''].filter(Boolean);
       if (got.length) out.push(`${i + 1}번째 수: 능력 획득 (${got.join(', ')})`);
     });
@@ -1122,8 +1122,10 @@ function coreFactory() {
     if (!ctx.hand.some(Boolean)) return { results: [], stats, notes: ['손패가 비어 있습니다.'], done: true };
 
     const heldAny = root.held.dot + root.held.swap > 0;
-    const placeEnd = t0 + budget * (heldAny ? 0.6 : 0.95);
-    let B = Math.max(1, s.beamWidth | 0);
+    // fixedBeam이 있으면 시간과 무관하게 그 빔으로 한 번만 탐색한다 (시뮬레이터에서 결과가 재현되도록)
+    const fixed = s.fixedBeam > 0;
+    const placeEnd = fixed ? Infinity : t0 + budget * (heldAny ? 0.6 : 0.95);
+    let B = Math.max(1, fixed ? s.fixedBeam : s.beamWidth | 0);
     let leaves = [];
     for (;;) {
       const t = now();
@@ -1136,7 +1138,7 @@ function coreFactory() {
       stats.ms = now() - t0;
       if (onProgress) onProgress(pack(ctx, root, leaves.map(lf => ({ kind: 'place', node: lf, total: lf.total })), stats, notes, false));
       // 빔이 잘리지 않았으면(후보가 빔보다 적으면) 더 넓혀도 결과가 같다
-      if (!r.pruned || now() + dt * 2.3 > placeEnd || B >= 4096) break;
+      if (fixed || !r.pruned || now() + dt * 2.3 > placeEnd || B >= 4096) break;
       B *= 2;
     }
 
@@ -1147,14 +1149,14 @@ function coreFactory() {
     // 한도에 가깝고 곧 아이콘 칸이 생기면 능력을 쓰는 문턱을 낮춘다
     const relax = heldTotal >= ctx.cap - 1 && ctx.untilNext > 0 && ctx.untilNext <= 2 ? 0.5 : 1;
     if (root.held.dot > 0) {
-      const d = analyzeDot(ctx, root, t0 + budget * 0.8, stuck);
+      const d = analyzeDot(ctx, root, fixed ? Infinity : t0 + budget * 0.8, stuck);
       if (d && d.actions.length) {
         const g = stuck ? Infinity : d.total - base.total;
         if (stuck || g >= s.thetaDot * relax) cands.push({ kind: 'dot', node: d, total: d.total, gain: stuck ? NaN : g });
       }
     }
     if (root.held.swap > 0) {
-      const sw = analyzeSwap(ctx, root, t0 + budget * 0.97, stuck);
+      const sw = analyzeSwap(ctx, root, fixed ? Infinity : t0 + budget * 0.97, stuck);
       if (sw && sw.info && !sw.forced) notes.push(sw.info);
       if (sw && sw.piece !== undefined) {
         const g = sw.avg - base.total;
@@ -1223,6 +1225,29 @@ function coreFactory() {
     while (turns < cfg.maxTurns) {
       turns++;
       const hand = [draw(cleared), draw(cleared), draw(cleared)];
+      if (cfg.useAbilities) {
+        // 실제 추천과 같은 판단(점 찍기·바꿔 뽑기 포함)으로 첫 수만 두고 다시 계산한다
+        for (let guard = 0; guard < 20 && hand.some(Boolean); guard++) {
+          const out = solve({
+            board, items, hand, abilities: { dot: held.dot, swap: held.swap, untilNext }, clearedLines: cleared,
+            rules, weights, solver: { ...cfg.solver, fixedBeam: cfg.beam }, dict: cfg.dict,
+          });
+          const a = out.results[0]?.actions[0];
+          if (!a) return { score, turns, cleared, over: true };
+          if (a.type === 'place') {
+            const o = makePiece(hand[a.piece]).orients[a.orient];
+            afterMove(applyPlace(board, items, o, a.r, a.c), o.n);
+            hand[a.piece] = null;
+          } else if (a.type === 'dot') {
+            held = { dot: held.dot - 1, swap: held.swap };
+            afterMove(applyDot(board, items, a.r, a.c), rules.dotCountsAsPlacement ? 1 : 0);
+          } else {
+            held = { dot: held.dot, swap: held.swap - 1 };
+            hand[a.piece] = draw(cleared);
+          }
+        }
+        continue;
+      }
       for (let guard = 0; guard < 12 && hand.some(Boolean); guard++) {
         const input = {
           board, items, hand, abilities: { dot: held.dot, swap: held.swap, untilNext },
@@ -1277,32 +1302,43 @@ function coreFactory() {
   }
 
   // 가중치를 하나씩 ×1.3, ×0.7로 바꿔 보고 평균 점수가 오르면 받아들인다 (좌표 하강 한 바퀴)
+  // 능력 판단을 포함하면 θ_dot, θ_swap도 같은 방식으로 조정한다
+  function tuneKeys(weights, cfg) {
+    const keys = Object.keys(weights).filter(k => k !== 'score');
+    return cfg.useAbilities ? keys.concat(['thetaDot', 'thetaSwap']) : keys;
+  }
+
   function autotune(cfg, weights, onStep) {
     let best = { ...weights };
-    let bestAgg = simulateSet(cfg, best);
+    let theta = { thetaDot: cfg.solver.thetaDot, thetaSwap: cfg.solver.thetaSwap };
+    const run = (w, th) => simulateSet({ ...cfg, solver: { ...cfg.solver, ...th } }, w);
+    let bestAgg = run(best, theta);
     const history = [{ key: '시작', value: null, avg: bestAgg.score, accepted: true }];
     if (onStep) onStep(history[0], best);
-    for (const key of Object.keys(best)) {
-      if (key === 'score') continue;
+    for (const key of tuneKeys(weights, cfg)) {
+      const isTheta = key in theta;
       for (const f of [1.3, 0.7]) {
-        const trial = { ...best, [key]: Math.round(best[key] * f) };
-        if (trial[key] === best[key]) continue;
-        const agg = simulateSet(cfg, trial);
+        const cur = isTheta ? theta[key] : best[key];
+        const value = Math.round(cur * f);
+        if (value === cur) continue;
+        const w = isTheta ? best : { ...best, [key]: value };
+        const th = isTheta ? { ...theta, [key]: value } : theta;
+        const agg = run(w, th);
         const accepted = agg.score > bestAgg.score;
-        const h = { key, value: trial[key], avg: agg.score, accepted };
+        const h = { key, value, avg: agg.score, accepted };
         history.push(h);
-        if (accepted) { best = trial; bestAgg = agg; }
+        if (accepted) { best = w; theta = th; bestAgg = agg; }
         if (onStep) onStep(h, best);
         if (accepted) break;
       }
     }
-    return { weights: best, agg: bestAgg, history };
+    return { weights: best, theta, agg: bestAgg, history };
   }
 
   return {
     ROWS, COLS, FULL, popcount, normalize, cellsKey, transform, orientations, canonicalKey, makePiece,
     lineScore, fits, applyPlace, applyDot, finishMove, boardFeatures, staticEval, canPlaceAny,
-    makeCtx, rootNode, searchTurn, rank, replay, solve, simulateGame, simulateSet, autotune,
+    makeCtx, rootNode, searchTurn, rank, replay, solve, simulateGame, simulateSet, autotune, tuneKeys,
   };
 }
 
@@ -1320,7 +1356,7 @@ function workerMain(core) {
       });
       self.postMessage({ type: 'simDone', jobId: m.jobId, sets });
     } else if (m.type === 'autotune') {
-      const total = 1 + 2 * (Object.keys(m.weights).length - 1);
+      const total = 1 + 2 * core.tuneKeys(m.weights, m.cfg).length;
       let step = 0;
       const out = core.autotune(m.cfg, m.weights, (h, best) => self.postMessage({ type: 'tuneStep', jobId: m.jobId, h, best, done: ++step, total }));
       self.postMessage({ type: 'tuneDone', jobId: m.jobId, ...out });
@@ -2045,7 +2081,7 @@ const ui = (() => {
   let tool = 'fill';
 
   // 추천 상태
-  const reco = { results: [], notes: [], stats: null, done: true, sel: 0, pending: false, error: null };
+  const reco = { results: [], hand: [null, null, null], notes: [], stats: null, done: true, sel: 0, pending: false, error: null };
 
   // 빠르게 드래그하면 포인터 이벤트 사이에 칸이 빠지므로, 두 칸 사이를 직선으로 잇는 칸들을 돌려준다.
   function cellsBetween(a, b) {
@@ -2245,9 +2281,11 @@ const ui = (() => {
     updateStatus();
     renderReco();
     const m0 = mode;
+    const handSnap = st.hand.map(p => p && { ...p, cells: p.cells.map(c => c.slice()) });
     solver.solve(solverInput(st), m => {
       if (m0 !== mode) return;
       reco.results = m.results || [];
+      reco.hand = handSnap;
       reco.notes = m.notes || [];
       reco.stats = m.stats;
       reco.done = !!m.done;
@@ -3499,9 +3537,10 @@ const ui = (() => {
   }
 
   // 예: '손패 2번 ㅂ — 좌우 반전 후 시계 방향 90° 1번 → 위에서 12행·왼쪽에서 3열'
-  function actionText(a, st) {
+  function actionText(a, hand) {
     if (a.type === 'dot') return `점 찍기 → 위에서 ${a.r + 1}행·왼쪽에서 ${a.c + 1}열`;
-    const p = st.hand[a.piece];
+    const p = hand[a.piece];
+    if (!p) return `손패 ${a.piece + 1}번`;
     if (a.type === 'swap') return `바꿔 뽑기 → 손패 ${a.piece + 1}번 ${pieceLabel(p)} 다시 뽑기`;
     const o = orientOf(p, a.orient);
     const ops = [];
@@ -3533,13 +3572,14 @@ const ui = (() => {
     top.className = 'reco-top';
     const shape = document.createElement('div');
     shape.className = 'reco-shape';
-    if (first.type === 'place') shape.append(miniGrid(orientOf(st.hand[first.piece], first.orient).cells, 'gold'));
+    const hand = reco.hand;
+    if (first.type === 'place' && hand[first.piece]) shape.append(miniGrid(orientOf(hand[first.piece], first.orient).cells, 'gold'));
     else shape.innerHTML = `<i class="sw ${first.type === 'dot' ? 'dot' : 'swap'}" style="width:22px;height:22px"></i>`;
     const head = document.createElement('div');
     head.innerHTML = `<div class="reco-label">${reco.sel === 0 ? '1순위' : `대안 ${reco.sel + 1}`} · 지금 할 수</div>`;
     const text = document.createElement('p');
     text.className = 'reco-text';
-    text.textContent = actionText(first, st);
+    text.textContent = actionText(first, hand);
     head.append(text);
     top.append(shape, head);
     card.append(top);
@@ -3550,7 +3590,7 @@ const ui = (() => {
       res.actions.slice(1).forEach((a, i) => {
         const line = document.createElement('div');
         line.innerHTML = `<b>${CIRCLED[i + 1]}</b> `;
-        line.append(actionText(a, st));
+        line.append(actionText(a, hand));
         seq.append(line);
       });
       card.append(seq);
@@ -3587,7 +3627,7 @@ const ui = (() => {
         b.className = 'alt';
         b.setAttribute('aria-pressed', String(i === reco.sel));
         const a0 = r.actions[0];
-        const label = a0.type === 'place' ? pieceLabel(st.hand[a0.piece]) : a0.type === 'dot' ? '점 찍기' : '바꿔 뽑기';
+        const label = a0.type === 'place' ? (hand[a0.piece] ? pieceLabel(hand[a0.piece]) : `손패 ${a0.piece + 1}번`) : a0.type === 'dot' ? '점 찍기' : '바꿔 뽑기';
         b.innerHTML = `<span>${i + 1}. ${escapeHtml(label)}</span><span class="mono">+${fmt(r.points)} · 평가 ${fmt(r.score)}</span>`;
         b.addEventListener('click', () => selectAlt(i));
         alts.append(b);
@@ -4031,13 +4071,14 @@ const ui = (() => {
     num('iconEvery', '아이콘 칸 생성 주기', '배치 횟수 (가정값)', { min: 1, max: 99, int: true, unconfirmed: true }),
     num('beam', '빔 폭', '고정, 시간 예산 없음', { min: 1, max: 256, int: true }),
     num('seed', '시드', '같은 시드 = 같은 손패 순서', { min: 0, int: true }),
+    { path: 'useAbilities', label: '능력 판단 포함', desc: '점 찍기·바꿔 뽑기 판단과 θ 조정까지 (느림)', kind: 'bool' },
   ];
 
   function simCfg() {
     const s = settings.sim;
     return {
       rules: settings.rules, solver: settings.solver, dict: dictForSolver(1).map(({ cells, name, seen }) => ({ cells, name, seen })),
-      games: s.games, maxTurns: s.maxTurns, iconEvery: s.iconEvery, beam: s.beam, seed: s.seed,
+      games: s.games, maxTurns: s.maxTurns, iconEvery: s.iconEvery, beam: s.beam, seed: s.seed, useAbilities: !!s.useAbilities,
     };
   }
 
@@ -4128,24 +4169,26 @@ const ui = (() => {
   }
 
   function renderTuneResult(m) {
-    const changed = Object.keys(m.weights).filter(k => m.weights[k] !== settings.weights[k]);
+    const changed = Object.keys(m.weights).filter(k => m.weights[k] !== settings.weights[k]).map(k => [k, settings.weights[k], m.weights[k]]);
+    for (const k of ['thetaDot', 'thetaSwap']) if (m.theta[k] !== settings.solver[k]) changed.push([k, settings.solver[k], m.theta[k]]);
     const out = $('#simOut');
     out.replaceChildren();
     const p = document.createElement('p');
     p.textContent = changed.length
-      ? `평균 ${fmt(m.history[0].avg)}점 → ${fmt(m.agg.score)}점. 바뀐 가중치: ${changed.map(k => `${k} ${settings.weights[k]} → ${m.weights[k]}`).join(', ')}`
-      : `평균 ${fmt(m.agg.score)}점. 더 나은 가중치를 찾지 못했습니다.`;
+      ? `평균 ${fmt(m.history[0].avg)}점 → ${fmt(m.agg.score)}점. 바뀐 값: ${changed.map(([k, a, b]) => `${k} ${a} → ${b}`).join(', ')}`
+      : `평균 ${fmt(m.agg.score)}점. 더 나은 값을 찾지 못했습니다.`;
     out.append(p);
     if (changed.length) {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'btn sm primary';
-      b.textContent = '이 가중치 적용';
+      b.textContent = '이 값 적용';
       b.style.marginTop = '8px';
       b.addEventListener('click', () => {
         settings.weights = { ...m.weights };
+        Object.assign(settings.solver, m.theta);
         settingsChanged();
-        toast('조정된 가중치를 적용했습니다.');
+        toast('조정된 값을 적용했습니다.');
         b.disabled = true;
       });
       out.append(b);
