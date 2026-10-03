@@ -340,7 +340,7 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-b
       <span class="hint">가상 화면은 데모 탭의 판·손패를 게임처럼 그립니다.</span>
       <label class="check"><input type="checkbox" data-fake="preview" /> 마우스 미리보기</label>
       <label class="check"><input type="checkbox" data-fake="cursor" /> 손 모양 커서</label>
-      <label class="check"><input type="checkbox" data-fake="selected" /> 1번 카드 선택</label>
+      <label class="check"><input type="checkbox" data-fake="cardCursor" /> 1번 카드 위 커서</label>
       <label class="check"><input type="checkbox" data-fake="blur" checked /> 압축 번짐</label>
       <span class="hint" id="fakeScore"></span>
     </div>
@@ -518,13 +518,14 @@ const config = (() => {
   // 시뮬레이터 기본값. iconEvery는 미확인 규칙이라 시뮬레이션 가정값으로만 쓴다.
   const SIM = { games: 20, maxTurns: 80, iconEvery: 7, beam: 4, seed: 1, useAbilities: false };
 
-  // 사용자가 보낸 조각 이미지(2026-10-03)에서 읽은 모양. X = 칸. 확인 필요 표시는 이미지가 작아 읽기가 불확실한 것.
-  // 그 밖의 조각(초록 ㅍ 비슷한 것, 노란 넓은 십자 등)은 읽지 못해 넣지 않았다. 손패 편집으로 사전에 추가한다.
+  // 사용자가 보낸 조각 이미지(2026-10-03, 16종이 전부)에서 읽은 모양. X = 칸.
+  // ㅏ 4칸·ㄱ 4칸·ㅡ 3칸은 게임 화면 캡처의 카드 라벨로 확인했다. 확인 필요 표시는 이미지가 작아 읽기가 불확실한 것.
+  // 16종 중 2종(초록 ㅍ 비슷한 것, 노란 넓은 십자)은 읽지 못해 넣지 않았다. 손패 편집으로 사전에 추가한다.
   const PIECE_PRESET = [
     { name: 'ㅂ', rows: ['X.X', 'XXX', 'X.X', 'XXX'] },
     { name: 'ㄱ', rows: ['XXX', '..X', '..X', '..X'], unsure: true },
     { name: 'ㅣ', rows: ['X', 'X', 'X', 'X', 'X'] },
-    { name: 'ㅏ', rows: ['X..', 'X..', 'XXX', 'X..', 'X..'], unsure: true },
+    { name: 'ㅏ', rows: ['X.', 'XX', 'X.'] },
     { name: 'ㆍ', rows: ['X'] },
     { name: 'ㄷ', rows: ['XXX', 'X..', 'XXX'], unsure: true },
     { name: 'ㄴ', rows: ['X.', 'XX'] },
@@ -534,7 +535,7 @@ const config = (() => {
     { name: 'ㄹ', rows: ['XX', '.X', 'XX', 'X.', 'XX'], unsure: true },
     { name: 'ㅊ', rows: ['.X.', 'XXX', '.X.', 'X.X'] },
     { name: '십', rows: ['.X.', 'XXX', '.X.'] },
-    { name: 'ㄱ작은', rows: ['XX', '.X', '.X'], unsure: true },
+    { name: 'ㄱ', rows: ['XX', '.X', '.X'] },
   ];
   const presetCells = rows => rows.flatMap((line, r) => [...line].flatMap((ch, c) => (ch === 'X' ? [[r, c]] : [])));
 
@@ -555,6 +556,8 @@ const config = (() => {
       tIcon: RECOG.tIcon,
       previewTol: RECOG.previewTol,
       iconTemplates: { dot: [], swap: [] },
+      numRects: { cleared: null, untilNext: null, dot: null, swap: null },
+      numTemplates: { cleared: [], untilNext: [], dot: [], swap: [] },
       mode: 'demo',
       rules: clone(RULES),
       weights: defaultWeights(),
@@ -1138,7 +1141,7 @@ function coreFactory() {
       stats.ms = now() - t0;
       if (onProgress) onProgress(pack(ctx, root, leaves.map(lf => ({ kind: 'place', node: lf, total: lf.total })), stats, notes, false));
       // 빔이 잘리지 않았으면(후보가 빔보다 적으면) 더 넓혀도 결과가 같다
-      if (fixed || !r.pruned || now() + dt * 2.3 > placeEnd || B >= 4096) break;
+      if (fixed || !r.pruned || now() + dt * 2.6 > placeEnd || B >= 4096) break;
       B *= 2;
     }
 
@@ -1482,13 +1485,21 @@ const solver = (() => {
 const fakeScreen = (() => {
   const W = 1280, H = 720;
   const ROWS = 16, COLS = 10, FULL = (1 << COLS) - 1;
-  const BOARD = { x: 452, y: 150, cell: 26 };
-  const CARD = { x: 790, y: 132, w: 132, h: 128, gapY: 14, pad: 9, labelH: 30 };
-  const SCALES = [18, 14, 16];   // 카드마다 조각 배율이 다르다
+  // 실제 게임 창(약 415 × 580) 배치를 따른다. OX, OY는 화면 안 게임 창 위치.
+  const OX = 430, OY = 70;
+  const BOARD = { x: OX + 12, y: OY + 98, cell: 26 };
+  const CARD = { x: OX + 288, y: OY + 124, w: 124, h: 70, gapY: 6, panel: { x: 4, y: 4, w: 58, h: 62 } };
+  const NUM = {
+    cleared: { x: OX + 222, y: OY + 61, w: 52, h: 18 },
+    untilNext: { x: OX + 318, y: OY + 393, w: 34, h: 19 },
+    dot: { x: OX + 377, y: OY + 466, w: 16, h: 16 },
+    swap: { x: OX + 377, y: OY + 502, w: 16, h: 16 },
+  };
   const PALETTE = [[240, 120, 170], [64, 138, 226], [246, 204, 72], [96, 200, 112], [164, 112, 226], [246, 150, 72]];
+  const CARD_COLORS = [[64, 160, 240], [236, 96, 196], [246, 200, 50]];
   const EMPTY = [70, 176, 174], EMPTY_EDGE = [56, 154, 152];
   const C = { green: [40, 223, 121], x: [254, 150, 120], forecast: [152, 233, 173] };
-  const opts = { preview: false, cursor: false, selected: false, blur: true, previewAt: { r: 2, c: 3 } };
+  const opts = { preview: false, cursor: false, cardCursor: false, blur: true, previewAt: { r: 2, c: 3 } };
 
   const canvas = document.createElement('canvas');
   canvas.width = W;
@@ -1505,10 +1516,11 @@ const fakeScreen = (() => {
 
   // 조각 칸: 짙은 테두리 + 단색 + 좌상단 흰 광택 반점
   function block(x, y, s, col) {
+    const b = s >= 16 ? 2 : 1;
     ctx.fillStyle = rgb(shade(col, 0.7));
     ctx.fillRect(x, y, s, s);
     ctx.fillStyle = rgb(col);
-    ctx.fillRect(x + 2, y + 2, s - 4, s - 4);
+    ctx.fillRect(x + b, y + b, s - 2 * b, s - 2 * b);
     const g = Math.max(2, Math.round(s * 0.2));
     ctx.fillStyle = '#fff';
     ctx.fillRect(x + Math.round(s * 0.12), y + Math.round(s * 0.12), g, g);
@@ -1558,18 +1570,36 @@ const fakeScreen = (() => {
     ctx.globalAlpha = 1;
   }
 
+  // 흰 손 모양 커서 (굵은 검은 테두리)
+  function glove(x, y) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.roundRect(0, 0, 7, 16, 3);
+    ctx.roundRect(-2, 10, 20, 15, 5);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = 'rgb(200,205,215)';
+    ctx.fillRect(4, 18, 10, 4);
+    ctx.restore();
+  }
+
   function cardRect(i) {
     return { x: CARD.x, y: CARD.y + i * (CARD.h + CARD.gapY), w: CARD.w, h: CARD.h };
   }
 
-  // 캘리브레이션 프리셋 (영상 px): 판의 칸 영역, 카드의 조각 영역(라벨·버튼 제외)
+  // 캘리브레이션 프리셋 (영상 px): 판의 칸 영역, 카드의 흰 조각 칸, 숫자 영역
   function preset() {
     return {
       board: { x: BOARD.x, y: BOARD.y, w: BOARD.cell * COLS, h: BOARD.cell * ROWS },
       hand: [0, 1, 2].map(i => {
         const c = cardRect(i);
-        return { x: c.x + CARD.pad, y: c.y + CARD.pad, w: c.w - CARD.pad * 2, h: c.h - CARD.pad - CARD.labelH };
+        return { x: c.x + CARD.panel.x, y: c.y + CARD.panel.y, w: CARD.panel.w, h: CARD.panel.h };
       }),
+      nums: { ...NUM },
     };
   }
 
@@ -1582,24 +1612,42 @@ const fakeScreen = (() => {
     return { cells: cells.filter(([r, c]) => r >= 0 && r < ROWS && c >= 0 && c < COLS), inside };
   }
 
+  function box(x, y, w, h, fill, rad = 8) {
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, rad);
+    ctx.fill();
+  }
+
+  function text(t, x, y, font, color, align = 'left') {
+    ctx.font = font;
+    ctx.fillStyle = color;
+    ctx.textAlign = align;
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(t, x, y);
+  }
+
   function render(st, { forceEmpty = false } = {}) {
+    // 빈 판 기준을 잡는 순간은 새 게임 화면이므로 숫자도 새 게임 값(0)으로 그린다
+    if (forceEmpty) st = { ...st, clearedLines: 0, abilities: { ...st.abilities, dot: 0, swap: 0 } };
     const t = performance.now() / 1000;
-    const grd = ctx.createLinearGradient(0, 0, 0, H);
-    grd.addColorStop(0, '#2B2148');
-    grd.addColorStop(1, '#151027');
-    ctx.fillStyle = grd;
+    ctx.fillStyle = '#1B1F2A';
     ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = '#F6E9C8';
-    ctx.font = '700 30px sans-serif';
-    ctx.fillText('한글 모아모아 (가상 화면)', 452, 70);
-    ctx.font = '16px sans-serif';
-    ctx.fillStyle = '#E8DDF8';
-    ctx.fillText(`제거한 줄 수 ${st.clearedLines}`, 452, 110);
-    ctx.fillText(`다음 능력 획득까지 ${st.abilities.untilNext}`, 600, 110);
+    // 게임 창
+    const grd = ctx.createLinearGradient(0, OY, 0, OY + 580);
+    grd.addColorStop(0, '#7CC46A');
+    grd.addColorStop(0.12, '#B9E6F0');
+    grd.addColorStop(1, '#8FD3E3');
+    box(OX, OY, 420, 580, grd, 14);
+    text('한글 모아모아 (가상 화면)', OX + 210, OY + 40, '700 26px sans-serif', '#FFFFFF', 'center');
+    box(OX + 8, OY + 56, 404, 26, 'rgb(122,84,52)', 6);
+    text('점수', OX + 18, OY + 74, '13px sans-serif', '#F4E6D2');
+    text('제거한 줄 수', OX + 150, OY + 74, '13px sans-serif', '#F4E6D2');
+    text(String(st.clearedLines), OX + 274, OY + 75, '700 15px sans-serif', '#FFFFFF', 'right');
+    text('최고 점수', OX + 288, OY + 74, '13px sans-serif', '#F4E6D2');
 
     const s = BOARD.cell;
-    ctx.fillStyle = '#0F4C50';
-    ctx.fillRect(BOARD.x - 8, BOARD.y - 8, COLS * s + 16, ROWS * s + 16);
+    box(BOARD.x - 6, BOARD.y - 6, COLS * s + 12, ROWS * s + 12, '#2E9DB0', 6);
     const board = forceEmpty ? new Array(ROWS).fill(0) : st.board;
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
@@ -1652,7 +1700,7 @@ const fakeScreen = (() => {
     }
 
     if (opts.cursor && !forceEmpty) {
-      // 손 모양 커서: 빈칸의 광택 위치를 흰 픽셀로 가린다
+      // 판 위의 손 모양 커서: 빈칸의 광택 위치를 흰 픽셀로 가린다
       const x = BOARD.x + 6 * s + 3, y = BOARD.y + 9 * s + 3;
       ctx.fillStyle = '#fff';
       ctx.strokeStyle = '#222';
@@ -1663,31 +1711,49 @@ const fakeScreen = (() => {
       ctx.stroke();
     }
 
+    // 보유 조각
+    box(OX + 288, OY + 94, 124, 24, '#5BB8D6', 8);
+    text('보유 조각', OX + 300, OY + 111, '700 13px sans-serif', '#FFFFFF');
     st.hand.forEach((p, i) => {
       const cr = cardRect(i);
-      ctx.fillStyle = opts.selected && i === 0 ? 'rgb(255,226,110)' : 'rgb(250,243,228)';
-      ctx.beginPath();
-      ctx.roundRect(cr.x, cr.y, cr.w, cr.h, 12);
-      ctx.fill();
+      const hover = opts.cardCursor && i === 0;
+      box(cr.x, cr.y, cr.w, cr.h, hover ? 'rgb(255,226,110)' : 'rgb(236,242,247)', 8);
+      const pn = { x: cr.x + CARD.panel.x, y: cr.y + CARD.panel.y, w: CARD.panel.w, h: CARD.panel.h };
+      box(pn.x, pn.y, pn.w, pn.h, hover ? 'rgb(255,241,177)' : 'rgb(255,255,255)', 7);
+      box(cr.x + 66, cr.y + 24, 54, 17, 'rgb(30,140,230)', 8);
+      box(cr.x + 66, cr.y + 46, 54, 17, 'rgb(20,170,160)', 8);
+      text('회전', cr.x + 93, cr.y + 37, '700 11px sans-serif', '#FFFFFF', 'center');
+      text('반전', cr.x + 93, cr.y + 59, '700 11px sans-serif', '#FFFFFF', 'center');
       if (!p) return;
+      text(`${p.name || ''} ${p.cells.length}칸`, cr.x + 118, cr.y + 17, '700 12px sans-serif', '#555', 'right');
       const { h, w } = pieces.bbox(p.cells);
-      const area = { w: cr.w - CARD.pad * 2, h: cr.h - CARD.pad - CARD.labelH };
-      const cs = Math.min(SCALES[i], Math.floor(area.w / w), Math.floor(area.h / h));
-      const ox = cr.x + CARD.pad + Math.floor((area.w - w * cs) / 2);
-      const oy = cr.y + CARD.pad + Math.floor((area.h - h * cs) / 2);
-      for (const [r, c] of p.cells) block(ox + c * cs, oy + r * cs, cs, PALETTE[(i * 2 + 1) % PALETTE.length]);
-      ctx.fillStyle = '#5A4A3A';
-      ctx.font = '600 14px sans-serif';
-      ctx.fillText(`${p.name || ''} ${p.cells.length}칸`, cr.x + 12, cr.y + cr.h - 10);
-      for (const k of [0, 1]) {
-        ctx.fillStyle = k ? 'rgb(120,170,240)' : 'rgb(240,170,90)';
-        ctx.beginPath();
-        ctx.arc(cr.x + cr.w - 18 - k * 26, cr.y + cr.h - 15, 10, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      const cs = Math.min(10, Math.floor((pn.w - 8) / w), Math.floor((pn.h - 8) / h));
+      const ox = pn.x + Math.floor((pn.w - w * cs) / 2), oy = pn.y + Math.floor((pn.h - h * cs) / 2);
+      for (const [r, c] of p.cells) block(ox + c * cs, oy + r * cs, cs, CARD_COLORS[i % CARD_COLORS.length]);
+      if (hover) glove(pn.x + pn.w - 12, pn.y + pn.h - 26);
     });
 
-    out.filter = opts.blur ? 'blur(0.6px)' : 'none';
+    // 보유 능력
+    box(OX + 288, OY + 352, 124, 24, '#5BB8D6', 8);
+    text('보유 능력', OX + 300, OY + 369, '700 13px sans-serif', '#FFFFFF');
+    box(OX + 292, OY + 380, 116, 34, 'rgb(236,247,250)', 8);
+    text('다음 능력 획득까지', OX + 350, OY + 392, '11px sans-serif', '#3A7F8C', 'center');
+    text(String(st.abilities.untilNext), OX + 350, OY + 410, '700 16px sans-serif', '#1E9AB0', 'right');
+    text('번', OX + 353, OY + 410, '11px sans-serif', '#1E9AB0');
+    box(OX + 292, OY + 418, 116, 34, 'rgb(236,247,250)', 8);
+    text('능력 보유 가능 개수', OX + 350, OY + 430, '11px sans-serif', '#3A7F8C', 'center');
+    text(`${st.abilities.dot + st.abilities.swap}/7`, OX + 350, OY + 448, '700 15px sans-serif', '#1E9AB0', 'center');
+    for (const [k, y, col, label] of [['dot', 458, 'rgb(70,150,240)', '점 찍기'], ['swap', 494, 'rgb(180,110,235)', '바꿔 뽑기']]) {
+      box(OX + 292, OY + y, 116, 32, col, 12);
+      text(label, OX + 340, OY + y + 21, '700 13px sans-serif', '#FFFFFF', 'center');
+      ctx.fillStyle = k === 'dot' ? 'rgb(28,64,150)' : 'rgb(96,40,140)';
+      ctx.beginPath();
+      ctx.arc(OX + 385, OY + y + 16, 11, 0, Math.PI * 2);
+      ctx.fill();
+      text(String(st.abilities[k]), OX + 385, OY + y + 21, '700 13px sans-serif', '#FFFFFF', 'center');
+    }
+
+    out.filter = opts.blur ? 'blur(0.5px)' : 'none';
     out.drawImage(scratch, 0, 0);
     out.filter = 'none';
   }
@@ -1925,15 +1991,54 @@ const recognize = (() => {
     if (w < 8 || h < 8) return null;
     const d = img.data, W = img.width;
     const px = (x, y) => { const i = ((y0 + y) * W + (x0 + x)) * 4; return [d[i], d[i + 1], d[i + 2]]; };
-    // 선택된 카드는 배경이 노랗게 바뀌므로 매 프레임 네 모서리에서 배경색을 다시 잰다
-    const corners = [[1, 1], [w - 4, 1], [1, h - 4], [w - 4, h - 4]].map(([cx, cy]) => {
-      let s = [0, 0, 0];
-      for (let yy = 0; yy < 3; yy++) for (let xx = 0; xx < 3; xx++) { const p = px(cx + xx, cy + yy); s = s.map((v, k) => v + p[k]); }
-      return s.map(v => v / 9);
-    });
-    const bg = [0, 1, 2].map(k => corners.reduce((a, c) => a + c[k], 0) / 4);
+    // 마우스를 올리면 카드가 노랗게 바뀌므로 매 프레임 배경색을 다시 잰다.
+    // 조각 영역은 모서리가 둥글어 모서리 픽셀이 카드 테두리일 수 있으니, 가장자리 고리에서 가장 흔한 색을 쓴다.
+    const buckets = new Map();
+    const addBg = (x, y) => {
+      const p = px(x, y);
+      const k = (p[0] >> 4) * 256 + (p[1] >> 4) * 16 + (p[2] >> 4);
+      const b = buckets.get(k) ?? buckets.set(k, [0, 0, 0, 0]).get(k);
+      b[0] += p[0]; b[1] += p[1]; b[2] += p[2]; b[3]++;
+    };
+    for (let x = 0; x < w; x++) for (const y of [1, 2, h - 3, h - 2]) addBg(x, y);
+    for (let y = 3; y < h - 3; y++) for (const x of [1, 2, w - 3, w - 2]) addBg(x, y);
+    const top = [...buckets.values()].sort((a, b) => b[3] - a[3])[0];
+    const bg = [top[0] / top[3], top[1] / top[3], top[2] / top[3]];
+    // 조각 칸은 채도가 높은 색(파랑·분홍·노랑·초록)이고, 손 모양 커서는 흰색·회색·검은 테두리라 채도가 낮다.
+    // 채도가 낮은 픽셀은 조각에서 빼고, 굵은 검은 테두리가 보이면 커서가 카드 위에 있다고 표시한다.
+    const sat = p => Math.max(p[0], p[1], p[2]) - Math.min(p[0], p[1], p[2]);
     const mask = new Uint8Array(w * h);
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (rgbDist(px(x, y), bg) > 60) mask[y * w + x] = 1;
+    const darkAt = [];
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const p = px(x, y);
+        if (rgbDist(p, bg) <= 60) continue;
+        const s = sat(p);
+        if (s > 45) mask[y * w + x] = 1;
+        else if (s < 35 && luma(p) < 70) darkAt.push([x, y]);
+      }
+    }
+    const occluded = darkAt.length >= Math.max(6, w * h * 0.004);
+    // 커서 테두리 둘레 2px는 번진 색이 섞여 조각처럼 보일 수 있으니 지운다
+    if (occluded) for (const [x, y] of darkAt) for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+      const xx = x + dx, yy = y + dy;
+      if (xx >= 0 && yy >= 0 && xx < w && yy < h) mask[yy * w + xx] = 0;
+    }
+    // 영역 가장자리에 닿은 덩어리는 조각이 아니다 (마우스를 올리면 노랗게 바뀌는 카드의 둥근 모서리 등).
+    // 조각은 흰 칸 가운데에 그려지므로 가장자리에 닿지 않는다.
+    const stack = [];
+    for (let x = 0; x < w; x++) { stack.push(x, (h - 1) * w + x); }
+    for (let y = 0; y < h; y++) { stack.push(y * w, y * w + w - 1); }
+    while (stack.length) {
+      const i = stack.pop();
+      if (!mask[i]) continue;
+      mask[i] = 0;
+      const x = i % w, y = (i - x) / w;
+      if (x > 0) stack.push(i - 1);
+      if (x < w - 1) stack.push(i + 1);
+      if (y > 0) stack.push(i - w);
+      if (y < h - 1) stack.push(i + w);
+    }
     // 잡티를 빼고(이웃 8칸 중 4칸 이상이 전경) 외접 사각형을 구한다
     let bx0 = w, by0 = h, bx1 = -1, by1 = -1, count = 0;
     for (let y = 1; y < h - 1; y++) {
@@ -1947,7 +2052,7 @@ const recognize = (() => {
         if (y < by0) by0 = y; if (y > by1) by1 = y;
       }
     }
-    if (count < 20) return null;
+    if (count < 20) return occluded ? { cells: null, occluded } : null;
     const bw = bx1 - bx0 + 1, bh = by1 - by0 + 1;
     const frac = (fx, fy, fw, fh) => {
       let n = 0, on = 0;
@@ -1987,7 +2092,7 @@ const recognize = (() => {
         if (!best || score > best.score + 1e-9) best = { cells, R, C, score };
       }
     }
-    return best;
+    return best ? { ...best, occluded } : occluded ? { cells: null, occluded } : null;
   }
 
   /* 능력 아이콘: 등록할 때 아이콘 색(칸의 바탕과 가장 다른 색)과 그 색이 만드는 모양(14×14 마스크)을 저장한다.
@@ -2063,7 +2168,125 @@ const recognize = (() => {
     return { dot, swap, scores };
   }
 
-  return { patchMean, cellCenter, cellMeans, rgb2lab, deltaE, baselineLab, readCell, readBoard, mergeBoard, readCard, iconTemplate, readIcons };
+  /* 숫자 (제거한 줄 수, 다음 능력까지, 능력 개수): 배경과 다른 픽셀을 세로 열 투영으로 글자마다 나누고,
+     8×12로 줄여 학습한 숫자 모양과 비교한다. 숫자 모양은 값을 알 때(손으로 넣은 값, 새 게임의 0) 배운다. */
+  const GW = 8, GH = 12;
+
+  function readGlyphs(img, rect) {
+    const x0 = Math.round(rect.x - img.x0), y0 = Math.round(rect.y - img.y0);
+    const w = Math.round(rect.w), h = Math.round(rect.h);
+    if (w < 4 || h < 6) return [];
+    const d = img.data, W = img.width;
+    const px = (x, y) => { const i = ((y0 + y) * W + (x0 + x)) * 4; return [d[i], d[i + 1], d[i + 2]]; };
+    // 배경: 가장자리 한 줄에서 가장 흔한 색
+    const buckets = new Map();
+    const add = (x, y) => {
+      const p = px(x, y);
+      const k = (p[0] >> 4) * 256 + (p[1] >> 4) * 16 + (p[2] >> 4);
+      const b = buckets.get(k) ?? buckets.set(k, [0, 0, 0, 0]).get(k);
+      b[0] += p[0]; b[1] += p[1]; b[2] += p[2]; b[3]++;
+    };
+    for (let x = 0; x < w; x++) { add(x, 0); add(x, h - 1); }
+    for (let y = 1; y < h - 1; y++) { add(0, y); add(w - 1, y); }
+    const top = [...buckets.values()].sort((a, b) => b[3] - a[3])[0];
+    const bg = [top[0] / top[3], top[1] / top[3], top[2] / top[3]];
+    const mask = new Float32Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) mask[y * w + x] = Math.min(1, Math.max(0, (rgbDist(px(x, y), bg) - 40) / 60));
+    const cols = Array.from({ length: w }, (_, x) => { let s = 0; for (let y = 0; y < h; y++) s += mask[y * w + x]; return s; });
+    const colMax = Math.max(...cols);
+    // 번짐으로 글자 사이가 완전히 비지 않으므로, 가장 진한 열의 25%보다 옅은 열을 글자 사이로 본다
+    const gapTh = Math.max(0.6, colMax * 0.25);
+    const raw = [];
+    let start = -1;
+    for (let x = 0; x <= w; x++) {
+      const on = x < w && cols[x] >= gapTh;
+      if (on && start < 0) start = x;
+      if (!on && start >= 0) { raw.push([start, x - 1]); start = -1; }
+    }
+    // 그래도 붙은 글자(너비가 글자 높이의 0.9배 넘음)는 가운데쯤 가장 옅은 열에서 나눈다
+    const rowsOn = [];
+    for (let y = 0; y < h; y++) { let s = 0; for (let x = 0; x < w; x++) s += mask[y * w + x]; if (s >= 0.6) rowsOn.push(y); }
+    const textH = rowsOn.length ? rowsOn[rowsOn.length - 1] - rowsOn[0] + 1 : h;
+    const segs = [];
+    const split = ([a, b]) => {
+      if (b - a + 1 <= textH * 0.9 || b - a < 4) { segs.push([a, b]); return; }
+      let m = a + 2;
+      for (let x = a + 2; x <= b - 2; x++) if (cols[x] < cols[m]) m = x;
+      split([a, m - 1]);
+      split([m + 1, b]);
+    };
+    raw.forEach(split);
+    const out = [];
+    for (const [a, b] of segs) {
+      let r0 = h, r1 = -1, total = 0;
+      for (let y = 0; y < h; y++) {
+        let s = 0;
+        for (let x = a; x <= b; x++) s += mask[y * w + x];
+        if (s >= 0.6) { if (y < r0) r0 = y; r1 = y; }
+        total += s;
+      }
+      if (r1 < 0 || total < 3) continue;
+      const sw = b - a + 1, sh = r1 - r0 + 1;
+      const v = new Array(GW * GH).fill(0);
+      for (let i = 0; i < GH; i++) {
+        for (let j = 0; j < GW; j++) {
+          // 글자 상자를 8×12로 나눠 칸마다 평균 (작은 글자는 가장 가까운 픽셀)
+          const ya = r0 + (i * sh) / GH, yb = r0 + ((i + 1) * sh) / GH;
+          const xa = a + (j * sw) / GW, xb = a + ((j + 1) * sw) / GW;
+          let s = 0, n = 0;
+          for (let y = Math.floor(ya); y < Math.max(Math.floor(ya) + 1, Math.ceil(yb)); y++) {
+            for (let x = Math.floor(xa); x < Math.max(Math.floor(xa) + 1, Math.ceil(xb)); x++) { s += mask[y * w + x] || 0; n++; }
+          }
+          v[i * GW + j] = s / n;
+        }
+      }
+      const mean = v.reduce((p, q) => p + q, 0) / v.length;
+      let norm = 0;
+      for (let k = 0; k < v.length; k++) { v[k] -= mean; norm += v[k] * v[k]; }
+      norm = Math.sqrt(norm) || 1;
+      out.push({ vec: v.map(x => Math.round((x / norm) * 1e4) / 1e4), aspect: Math.round((sw / sh) * 100) / 100 });
+    }
+    return out;
+  }
+
+  const ncc = (a, b) => { let s = 0; for (let k = 0; k < a.length; k++) s += a[k] * b[k]; return s; };
+  const glyphScore = (g, t) => ncc(g.vec, t.vec) - 0.6 * Math.abs(g.aspect - t.aspect);
+
+  // templates: [{ digit, vec, aspect }]. 모르는 글자가 하나라도 있으면 null.
+  function readNumber(img, rect, templates) {
+    const gl = readGlyphs(img, rect);
+    if (!gl.length || !templates.length) return { value: null, glyphs: gl.length };
+    let digits = '';
+    for (const g of gl) {
+      const best = new Map();
+      for (const t of templates) {
+        const sc = glyphScore(g, t);
+        if (!best.has(t.digit) || sc > best.get(t.digit)) best.set(t.digit, sc);
+      }
+      const ranked = [...best.entries()].sort((a, b) => b[1] - a[1]);
+      if (ranked[0][1] < 0.75 || (ranked[1] && ranked[0][1] - ranked[1][1] < 0.05)) return { value: null, glyphs: gl.length };
+      digits += ranked[0][0];
+    }
+    return { value: Number(digits), glyphs: gl.length };
+  }
+
+  // 값을 아는 화면에서 글자 모양을 배운다. 글자 수가 맞지 않으면 배우지 않는다.
+  function teachNumber(img, rect, value, templates) {
+    const gl = readGlyphs(img, rect);
+    const digits = String(value);
+    if (gl.length !== digits.length) return null;
+    const out = templates.slice();
+    gl.forEach((g, i) => {
+      const digit = digits[i];
+      const same = out.filter(t => t.digit === digit);
+      if (same.some(t => ncc(g.vec, t.vec) > 0.98)) return;
+      out.push({ digit, ...g });
+      if (same.length >= 3) out.splice(out.indexOf(same[0]), 1);
+    });
+    return out;
+  }
+
+  return { patchMean, cellCenter, cellMeans, rgb2lab, deltaE, baselineLab, readCell, readBoard, mergeBoard, readCard, iconTemplate, readIcons, readGlyphs, readNumber, teachNumber };
 })();
 
 /* ================================================================
@@ -2203,7 +2426,15 @@ const ui = (() => {
 
   function loadDict() {
     const d = storage.load(storage.KEYS.dict);
-    if (!d || !Array.isArray(d.pieces)) return { version: 1, pieces: [] };
+    if (!d || !Array.isArray(d.pieces)) {
+      return {
+        version: 1,
+        pieces: config.PIECE_PRESET.map(p => {
+          const cells = pieces.normalize(config.presetCells(p.rows));
+          return { key: core.canonicalKey(cells), name: p.name, cells, seen: {}, ...(p.unsure ? { unsure: true } : {}) };
+        }),
+      };
+    }
     const list = [];
     const keys = new Set();
     for (const e of d.pieces) {
@@ -2589,7 +2820,10 @@ const ui = (() => {
 
   /* ---------- 화면 공유: 미러 ---------- */
 
-  const CAL_STEPS = ['board', 'hand0', 'hand1', 'hand2', 'baseline'];
+  const CAL_STEPS = ['board', 'hand0', 'hand1', 'hand2', 'numCleared', 'numUntil', 'numDot', 'numSwap', 'baseline'];
+  // 숫자 영역 단계 → settings.numRects 키 (선택 단계: 지정하지 않으면 그 숫자는 손으로 넣는다)
+  const NUM_STEP = { numCleared: 'cleared', numUntil: 'untilNext', numDot: 'dot', numSwap: 'swap' };
+  const NUM_LABEL = { cleared: '제거한 줄 수', untilNext: '다음 능력까지', dot: '점 찍기 개수', swap: '바꿔 뽑기 개수' };
   const calib = { active: false, step: 0, rects: null, baseline: null, zoom: false, drag: null };
   const view = { x: 0, y: 0, w: 16, h: 9 };
   let mirror, mctx, mdpr = 1;
@@ -2714,6 +2948,14 @@ const ui = (() => {
         g.strokeRect(rc.x, rc.y, rc.w, rc.h);
         labelAt(g, `카드 ${i + 1}`, rc.x, rc.y, '#F3C969');
       });
+      for (const [k, r] of Object.entries(calib.rects.nums)) {
+        if (!r) continue;
+        const rc = rectCss(r);
+        g.strokeStyle = NUM_STEP[cur] === k ? '#F3C969' : 'rgba(196,124,242,.9)';
+        g.lineWidth = 2;
+        g.strokeRect(rc.x, rc.y, rc.w, rc.h);
+        labelAt(g, NUM_LABEL[k], rc.x, rc.y, '#C47CF2');
+      }
       return;
     }
 
@@ -2853,21 +3095,29 @@ const ui = (() => {
 
   /* ---------- 화면 공유: 캘리브레이션 ---------- */
 
+  const NUM_HINT = '숫자만 감싸도록 드래그하세요 (\'번\', \'/7\' 같은 글자는 빼고). 선택 단계라 건너뛰면 이 숫자는 손으로 넣습니다.';
   const CAL_TEXT = {
-    board: '<b>1/5 판 영역</b> · 판의 왼쪽 위 칸 모서리부터 오른쪽 아래 칸 모서리까지 드래그하세요. 10×16 격자가 칸 경계에 맞아야 합니다. <kbd>방향키</kbd> 1px 이동, <kbd>Shift</kbd>+<kbd>방향키</kbd> 크기 조절.',
-    hand0: '<b>2/5 손패 카드 1</b> · 첫 번째 카드에서 조각이 그려지는 부분만 드래그하세요. \'○칸\' 라벨과 회전·반전 버튼은 빼세요.',
-    hand1: '<b>3/5 손패 카드 2</b> · 두 번째 카드의 조각 부분만 드래그하세요.',
-    hand2: '<b>4/5 손패 카드 3</b> · 세 번째 카드의 조각 부분만 드래그하세요.',
-    baseline: '<b>5/5 빈 판 기준</b> · 게임을 막 시작해 판이 비어 있을 때 \'빈 판 기준 저장\'을 누르세요. 160칸 각각의 색을 기준으로 저장합니다.',
+    board: '<b>1/9 판 영역</b> · 판의 왼쪽 위 칸 모서리부터 오른쪽 아래 칸 모서리까지 드래그하세요. 10×16 격자가 칸 경계에 맞아야 합니다. <kbd>방향키</kbd> 1px 이동, <kbd>Shift</kbd>+<kbd>방향키</kbd> 크기 조절.',
+    hand0: '<b>2/9 손패 카드 1</b> · 첫 번째 카드에서 조각이 그려지는 흰 칸만 드래그하세요. \'○칸\' 라벨과 회전·반전 버튼은 빼세요.',
+    hand1: '<b>3/9 손패 카드 2</b> · 두 번째 카드의 조각 칸만 드래그하세요.',
+    hand2: '<b>4/9 손패 카드 3</b> · 세 번째 카드의 조각 칸만 드래그하세요.',
+    numCleared: `<b>5/9 제거한 줄 수</b> · 위쪽 '제거한 줄 수' 옆 숫자. ${NUM_HINT}`,
+    numUntil: `<b>6/9 다음 능력 획득까지</b> · 숫자 부분. ${NUM_HINT}`,
+    numDot: `<b>7/9 점 찍기 개수</b> · 점 찍기 버튼의 동그라미 안 숫자. ${NUM_HINT}`,
+    numSwap: `<b>8/9 바꿔 뽑기 개수</b> · 바꿔 뽑기 버튼의 동그라미 안 숫자. ${NUM_HINT}`,
+    baseline: '<b>9/9 빈 판 기준</b> · 게임을 막 시작해 판이 비어 있을 때 \'빈 판 기준 저장\'을 누르세요. 160칸 각각의 색을 기준으로 저장하고, 새 게임의 숫자 0 모양도 배웁니다.',
   };
 
   function currentCalRect() {
     const s = CAL_STEPS[calib.step];
-    return s === 'board' || s === 'baseline' ? calib.rects.board : calib.rects.hand[Number(s.slice(4))];
+    if (s === 'board' || s === 'baseline') return calib.rects.board;
+    if (NUM_STEP[s]) return calib.rects.nums[NUM_STEP[s]];
+    return calib.rects.hand[Number(s.slice(4))];
   }
   function setCurrentCalRect(r) {
     const s = CAL_STEPS[calib.step];
     if (s === 'board') { calib.rects.board = r; calib.baseline = null; }
+    else if (NUM_STEP[s]) calib.rects.nums[NUM_STEP[s]] = r;
     else if (s !== 'baseline') calib.rects.hand[Number(s.slice(4))] = r;
   }
 
@@ -2878,8 +3128,13 @@ const ui = (() => {
     calib.active = true;
     calib.step = 0;
     calib.zoom = false;
-    calib.rects = { board: ratioToPx(settings.boardRect, sz), hand: settings.handRects.map(r => ratioToPx(r, sz)) };
+    calib.rects = {
+      board: ratioToPx(settings.boardRect, sz),
+      hand: settings.handRects.map(r => ratioToPx(r, sz)),
+      nums: Object.fromEntries(Object.entries(settings.numRects).map(([k, r]) => [k, ratioToPx(r, sz)])),
+    };
     calib.baseline = isCalibrated() ? settings.baseline : null;
+    calib.numZero = null;
     reco.results = [];
     renderCalib();
     defaultView();
@@ -2897,7 +3152,7 @@ const ui = (() => {
     if (s === 'baseline' && capture.kind === 'fake') text += ' (가상 화면은 이 단계에서 빈 판을 그립니다)';
     $('#calibStep').innerHTML = text;
     $('#calPrev').disabled = calib.step === 0;
-    $('#calNext').disabled = calib.step === CAL_STEPS.length - 1 || !currentCalRect();
+    $('#calNext').disabled = calib.step === CAL_STEPS.length - 1 || (!NUM_STEP[s] && !currentCalRect());
     $('#calZoom').setAttribute('aria-pressed', String(calib.zoom));
     $('#calPreset').hidden = capture.kind !== 'fake';
     $('#calBaseline').hidden = s !== 'baseline';
@@ -2918,6 +3173,12 @@ const ui = (() => {
     // 가상 화면은 이 단계에서 빈 판을 그리므로, 새 프레임을 그린 뒤에 읽는다
     if (capture.kind === 'fake') fakeScreen.render(demo, { forceEmpty: true });
     calib.baseline = recognize.cellMeans(capture.grab(b), b);
+    // 새 게임 화면이므로 제거한 줄 수·능력 개수는 0이다. 숫자 0의 모양을 배운다.
+    calib.numZero = {};
+    for (const k of ['cleared', 'dot', 'swap']) {
+      const r = calib.rects.nums[k];
+      if (r) calib.numZero[k] = recognize.teachNumber(capture.grab(r), r, 0, []);
+    }
     toast('빈 판 기준색을 저장했습니다. \'저장하고 마치기\'를 누르세요.');
     renderCalib();
   }
@@ -2927,6 +3188,13 @@ const ui = (() => {
     settings.boardRect = pxToRatio(calib.rects.board, sz);
     settings.handRects = calib.rects.hand.map(r => pxToRatio(r, sz));
     settings.baseline = calib.baseline;
+    for (const [k, r] of Object.entries(calib.rects.nums)) {
+      const old = settings.numRects[k];
+      settings.numRects[k] = r ? pxToRatio(r, sz) : null;
+      // 영역이 바뀌면 배운 숫자 모양은 버린다
+      if (!r || JSON.stringify(old) !== JSON.stringify(settings.numRects[k])) settings.numTemplates[k] = [];
+      if (calib.numZero?.[k]) settings.numTemplates[k] = [...settings.numTemplates[k], ...calib.numZero[k]];
+    }
     saveSettings();
     saveSettings.flush();
     endCalib();
@@ -2975,7 +3243,7 @@ const ui = (() => {
     $('#calZoom').addEventListener('click', () => { calib.zoom = !calib.zoom; renderCalib(); defaultView(); renderMirror(); });
     $('#calPreset').addEventListener('click', () => {
       const p = fakeScreen.preset();
-      calib.rects = { board: p.board, hand: p.hand };
+      calib.rects = { board: p.board, hand: p.hand, nums: { ...p.nums } };
       calib.baseline = null;
       gotoCalStep(CAL_STEPS.length - 1);
     });
@@ -3076,7 +3344,9 @@ const ui = (() => {
 
   function recognizeFrame() {
     const px = rectsPx();
-    const img = capture.grab(unionRect([px.board, ...px.hand]));
+    const numPx = numRectsPx();
+    const img = capture.grab(unionRect([px.board, ...px.hand, ...Object.values(numPx)]));
+    readNumbers(img, numPx);
     const opt = {
       tFill: settings.tFill, tGloss: settings.tGloss, previewTol: settings.previewTol,
       colors: RC.colors, glossPos: RC.glossPos, glossSize: RC.glossSize,
@@ -3116,12 +3386,19 @@ const ui = (() => {
       }
     }
 
-    const hand = px.hand.map(r => {
+    // 카드 위에 커서가 있으면(굵은 검은 테두리) 읽은 모양이 사전에 있을 때만 믿고, 아니면 직전 확정 모양을 유지한다
+    const hand = px.hand.map((r, i) => {
       const h = recognize.readCard(img, r);
-      return h ? { cells: pieces.normalize(h.cells), grid: `${h.C}×${h.R}`, score: h.score } : null;
+      if (!h) return null;
+      const cells = h.cells && pieces.normalize(h.cells);
+      const known = cells && dictFind(cells);
+      const hold = h.occluded && !known && prev;
+      return { cells: hold ? prev.hand[i]?.cells ?? null : cells, occluded: h.occluded, held: !!hold, known: !!known, grid: h.cells ? `${h.C}×${h.R}` : '-' };
     });
     recog.handDebug = hand;
-    const obs = { board: merged.board, items, hand: hand.map(h => h && { cells: h.cells }) };
+    recog.cursorOnCard = hand.some(h => h?.held);
+    recog.unknownCards = hand.map((h, i) => (h?.cells && !h.held && !h.known ? i + 1 : 0)).filter(Boolean);
+    const obs = { board: merged.board, items, hand: hand.map(h => h?.cells ? { cells: h.cells } : null) };
     const key = obsKey(obs);
     if (key === recog.lastKey) recog.stable++;
     else { recog.lastKey = key; recog.stable = 1; }
@@ -3190,6 +3467,7 @@ const ui = (() => {
     live.hand = obs.hand.map(p => p && sanitizePiece({ cells: p.cells, name: dictFind(p.cells)?.name }));
 
     const notes = [];
+    const before = { cleared: live.clearedLines, untilNext: live.abilities.untilNext, dot: live.abilities.dot, swap: live.abilities.swap };
     if (check.newGame) {
       live.clearedLines = 0;
       notes.push('판이 비어 새 게임으로 보고 제거한 줄 수를 0으로 되돌렸습니다');
@@ -3207,12 +3485,18 @@ const ui = (() => {
       if (check.cleared) notes.push(`${check.cleared}줄 삭제`);
       if (d || s) notes.push(`능력 획득 ${[d ? `점 찍기 ${d}` : '', s ? `바꿔 뽑기 ${s}` : ''].filter(Boolean).join(', ')}`);
     }
-    // 새로 나타난 손패 조각은 사전에 등장 기록을 남긴다 (처음 보는 모양은 이름 없이 추가)
+    // 새로 나타난 손패 조각은 사전에 등장 기록을 남긴다.
+    // 조각 종류는 정해져 있으므로 처음 보는 모양을 자동으로 추가하지 않는다 (잘못 읽은 모양이 쌓이지 않게).
     const stage = config.stageOf(settings.rules, live.clearedLines);
     const fresh = live.hand.filter((p, i) => p && (!prev?.hand[i] || core.cellsKey(prev.hand[i].cells) !== core.cellsKey(p.cells)));
-    if (fresh.length) {
-      for (const p of fresh) if (pieces.isConnected(p.cells) && !dictFind(p.cells)) dictUpsert(p.cells, '');
-      dictRecord(fresh, stage);
+    if (fresh.length) dictRecord(fresh, stage);
+    if (prev && check.placed > 0) {
+      // 화면 숫자를 제대로 읽고 있던 칸은, 직접 센 새 값으로 처음 보는 글자를 배운다
+      // (바뀌기 직전에 화면에서 읽은 값이 우리가 알던 값과 같았다면 함께 맞춰 오던 것)
+      const now = { cleared: live.clearedLines, untilNext: live.abilities.untilNext, dot: live.abilities.dot, swap: live.abilities.swap };
+      for (const k of Object.keys(now)) {
+        if (now[k] !== before[k] && numState[k]?.lastOk === before[k]) teachFromInput(k === 'cleared' ? 'clearedLines' : k, now[k], true);
+      }
     }
     if (notes.length) toast(notes.join(' · '));
     saveLive();
@@ -3256,6 +3540,54 @@ const ui = (() => {
     requestSolve();
   }
 
+  function numRectsPx() {
+    const sz = capture.size();
+    return Object.fromEntries(Object.entries(settings.numRects).filter(([, r]) => r).map(([k, r]) => [k, ratioToPx(r, sz)]));
+  }
+
+  // 화면의 숫자를 읽어 연속 2프레임 같으면 반영한다. 손으로 넣은 값보다 화면 값을 우선한다.
+  const numState = {};   // key → { last, count, status: 'ok' | 'learn' }
+  function readNumbers(img, numPx) {
+    let changed = false, statusChanged = false;
+    for (const [k, r] of Object.entries(numPx)) {
+      // 점 찍기·바꿔 뽑기 동그라미 숫자는 같은 글꼴이라 배운 모양을 함께 쓴다
+      const tpl = k === 'dot' || k === 'swap' ? [...settings.numTemplates.dot, ...settings.numTemplates.swap] : settings.numTemplates[k];
+      const { value } = recognize.readNumber(img, r, tpl);
+      const st = numState[k] ??= { last: null, count: 0, status: null };
+      const status = value === null ? 'learn' : 'ok';
+      if (value !== null) st.lastOk = value;
+      if (status !== st.status) { st.status = status; statusChanged = true; }
+      if (value === null) { st.count = 0; continue; }
+      st.count = value === st.last ? st.count + 1 : 1;
+      st.last = value;
+      if (st.count < RC.stableFrames) continue;
+      if (k === 'cleared' ? live.clearedLines !== value : live.abilities[k] !== value) {
+        if (k === 'cleared') live.clearedLines = value; else live.abilities[k] = value;
+        changed = true;
+      }
+    }
+    if (changed) {
+      saveLive();
+      requestSolve();
+    }
+    if (changed || statusChanged) renderAbilities();
+  }
+
+  // 손으로 넣은 값으로 그 숫자의 글자 모양을 배운다 (화면 공유 중이고 숫자 영역이 있을 때)
+  function teachFromInput(stepKey, value, silent = false) {
+    const k = stepKey === 'clearedLines' ? 'cleared' : stepKey;
+    const r = numRectsPx()[k];
+    if (mode !== 'live' || !capture.kind || !r) return;
+    const next = recognize.teachNumber(capture.grab(r), r, value, settings.numTemplates[k]);
+    if (!next) {
+      if (!silent) toast(`${NUM_LABEL[k]}: 화면의 글자 수가 넣은 값과 달라 배우지 못했습니다. 숫자 영역을 확인하세요.`);
+      return;
+    }
+    settings.numTemplates[k] = next;
+    saveSettings();
+    if (numState[k]) numState[k].count = 0;
+  }
+
   function liveStatus() {
     if (!capture.kind) return { text: '공유 전', tone: '' };
     if (calib.active) return { text: '캘리브레이션 중', tone: 'busy' };
@@ -3270,6 +3602,8 @@ const ui = (() => {
     const notes = [];
     if (recog.preview) notes.push('마우스 미리보기가 보입니다. 마우스를 판 밖으로 옮겨 주세요. 미리보기가 떠 있는 동안은 직전 상태를 유지합니다.');
     if (recog.unknown) notes.push(`아직 확정하지 못한 칸 ${recog.unknown}개는 빈칸으로 둡니다.`);
+    if (recog.cursorOnCard) notes.push('손패 카드 위의 커서가 조각을 가려 직전 모양을 유지합니다.');
+    if (recog.unknownCards?.length) notes.push(`손패 ${recog.unknownCards.join('·')}번은 조각 사전에 없는 모양입니다. 잘못 읽었으면 카드를 눌러 고치고, 맞으면 이름을 붙여 사전에 저장하세요.`);
     if (!settings.iconTemplates.dot.length && !settings.iconTemplates.swap.length) notes.push('능력 아이콘 템플릿이 없어 아이콘은 인식하지 않습니다. 보정 → 템플릿 등록으로 아이콘 칸을 눌러 주세요.');
     $('#liveNote').textContent = notes.join(' ');
     if (capture.kind === 'fake') {
@@ -3496,13 +3830,14 @@ const ui = (() => {
       row.className = 'stepper';
       const id = `st-${s.key}`;
       row.innerHTML = `
-        <label for="${id}">${s.icon ? `<i class="sw ${s.icon}"></i>` : ''}${s.label}</label>
+        <label for="${id}">${s.icon ? `<i class="sw ${s.icon}"></i>` : ''}${s.label}<span class="tag" data-src hidden></span></label>
         <button type="button" data-d="-1" aria-label="${s.label} 1 줄이기">−</button>
         <input type="number" id="${id}" min="0" max="${s.max}" step="1" inputmode="numeric" />
         <button type="button" data-d="1" aria-label="${s.label} 1 늘리기">+</button>`;
       const input = $('input', row);
       const commit = v => {
         stepSet(s.key, Math.min(s.max, Math.max(0, v)));
+        teachFromInput(s.key, stepGet(s.key));
         stateChanged();
       };
       for (const b of row.querySelectorAll('button')) {
@@ -3517,6 +3852,15 @@ const ui = (() => {
     for (const s of STEPPERS) {
       const input = $(`#st-${s.key}`);
       if (document.activeElement !== input) input.value = String(stepGet(s.key));
+      // 화면 공유 중 숫자 영역이 있으면 화면에서 읽는지, 글자 모양을 더 배워야 하는지 보여 준다
+      const k = s.key === 'clearedLines' ? 'cleared' : s.key;
+      const tag = input.closest('.stepper').querySelector('[data-src]');
+      const st = mode === 'live' && capture.kind && settings.numRects[k] ? numState[k] : null;
+      tag.hidden = !st;
+      if (st) {
+        tag.textContent = st.status === 'ok' ? '화면' : '학습 필요';
+        tag.title = st.status === 'ok' ? '화면의 숫자를 읽고 있습니다' : '처음 보는 숫자입니다. 화면과 같은 값을 넣으면 그 모양을 배웁니다';
+      }
     }
     const r = settings.rules;
     const st = cur();
@@ -4319,7 +4663,7 @@ const selftest = (() => {
       st.clearedLines = 0;
       const saved = { ...fakeScreen.opts };
       try {
-        Object.assign(fakeScreen.opts, { preview: false, cursor: false, selected: false, blur: true });
+        Object.assign(fakeScreen.opts, { preview: false, cursor: false, cardCursor: false, blur: true });
         fakeScreen.render(st, { forceEmpty: true });
         const lab = recognize.baselineLab(recognize.cellMeans(grab(p.board), p.board));
         const opt = { tFill: settings.tFill, tGloss: settings.tGloss, previewTol: settings.previewTol, ...config.RECOG_CONST };
@@ -4332,7 +4676,7 @@ const selftest = (() => {
         const m1 = recognize.mergeBoard(a.read, null);
         const boardOk = m1.board.every((v, r) => v === st.board[r]);
         const handOk = a.hand.every((h, i) => h && core.cellsKey(core.normalize(h.cells)) === core.cellsKey(core.normalize(st.hand[i].cells)));
-        Object.assign(fakeScreen.opts, { preview: true, cursor: true, selected: true });
+        Object.assign(fakeScreen.opts, { preview: true, cursor: true, cardCursor: true });
         fakeScreen.render(st);
         const b = readAll();
         const m2 = recognize.mergeBoard(b.read, st.board);
@@ -4342,6 +4686,29 @@ const selftest = (() => {
       } finally {
         Object.assign(fakeScreen.opts, saved);
       }
+    });
+
+    t('숫자 읽기: 배운 글자로 다른 수를 읽고, 모르는 글자는 읽지 않음', () => {
+      const p = fakeScreen.preset();
+      const cv = document.createElement('canvas');
+      cv.width = fakeScreen.W;
+      cv.height = fakeScreen.H;
+      const g = cv.getContext('2d', { willReadFrequently: true });
+      const shot = st => {
+        fakeScreen.render(st);
+        g.drawImage(fakeScreen.canvas, 0, 0);
+        return { data: g.getImageData(0, 0, cv.width, cv.height).data, width: cv.width, height: cv.height, x0: 0, y0: 0 };
+      };
+      const base = { ...empty(), hand: [null, null, null], abilities: { dot: 0, swap: 0, untilNext: 7 }, clearedLines: 12 };
+      const r = p.nums.cleared;
+      let tpl = recognize.teachNumber(shot(base), r, 12, []);
+      tpl = recognize.teachNumber(shot({ ...base, clearedLines: 0 }), r, 0, tpl);
+      const a = recognize.readNumber(shot({ ...base, clearedLines: 21 }), r, tpl).value;
+      const b = recognize.readNumber(shot({ ...base, clearedLines: 102 }), r, tpl).value;
+      const c = recognize.readNumber(shot({ ...base, clearedLines: 35 }), r, tpl).value;
+      const du = recognize.teachNumber(shot(base), p.nums.dot, 0, []);
+      const d = recognize.readNumber(shot(base), p.nums.dot, du).value;
+      return { pass: a === 21 && b === 102 && c === null && d === 0, detail: `21→${a}, 102→${b}, 35→${c ?? '모름'}, 점 찍기 0→${d}` };
     });
 
     t('사전 정규화: 회전·반전이 달라도 같은 키', () => {
