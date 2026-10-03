@@ -505,7 +505,8 @@ const config = (() => {
   const SOLVER = { budgetMs: 700, beamWidth: 16, thetaDot: 300, thetaSwap: 300, swapMinDict: 4 };
 
   // 인식 임계값은 실제 화면에서 정한다. 아래는 슬라이더의 시작 위치일 뿐이다.
-  const RECOG = { tFill: 15, tGloss: 30, tIcon: 0.6, previewTol: 40 };
+  // cardCellRatio: 손패 카드의 조각 한 칸 ÷ 판 한 칸 (게임 캡처에서 약 8.4px ÷ 26px)
+  const RECOG = { tFill: 15, tGloss: 30, tIcon: 0.6, previewTol: 40, cardCellRatio: 0.32 };
   // 기획서 5장의 샘플 측정값 (칸 약 26px). 영상 압축으로 달라질 수 있어 previewTol 만큼 허용한다.
   const RECOG_CONST = {
     colors: { green: [40, 223, 121], x: [254, 150, 120], forecast: [152, 233, 173] },
@@ -557,6 +558,7 @@ const config = (() => {
       tGloss: RECOG.tGloss,
       tIcon: RECOG.tIcon,
       previewTol: RECOG.previewTol,
+      cardCellRatio: RECOG.cardCellRatio,
       iconTemplates: { dot: [], swap: [] },
       numRects: { cleared: null, untilNext: null, dot: null, swap: null },
       numTemplates: { cleared: [], untilNext: [], dot: [], swap: [] },
@@ -1726,10 +1728,25 @@ const fakeScreen = (() => {
       box(cr.x + 66, cr.y + 46, 54, 17, 'rgb(20,170,160)', 8);
       text('회전', cr.x + 93, cr.y + 37, '700 11px sans-serif', '#FFFFFF', 'center');
       text('반전', cr.x + 93, cr.y + 59, '700 11px sans-serif', '#FFFFFF', 'center');
-      if (!p) return;
+      if (!p) {
+        // 사용한 카드: 카드 전체를 하늘색 '사용 완료' 판이 덮는다
+        const ug = ctx.createLinearGradient(0, cr.y, 0, cr.y + cr.h);
+        ug.addColorStop(0, 'rgb(14,176,233)');
+        ug.addColorStop(1, 'rgb(0,214,232)');
+        box(cr.x, cr.y, cr.w, cr.h, ug, 8);
+        ctx.shadowColor = 'rgba(255,255,255,.9)';
+        ctx.shadowBlur = 6;
+        text('사용 완료', cr.x + cr.w / 2, cr.y + cr.h / 2 + 5, '700 15px sans-serif', '#FFFFFF', 'center');
+        ctx.shadowBlur = 0;
+        for (const [dx, dy] of [[14, 52], [30, 60], [70, 48], [100, 58]]) {
+          ctx.fillStyle = 'rgba(200,255,255,.8)';
+          ctx.fillRect(cr.x + dx, cr.y + dy, 2, 2);
+        }
+        return;
+      }
       text(`${p.name || ''} ${p.cells.length}칸`, cr.x + 118, cr.y + 17, '700 12px sans-serif', '#555', 'right');
       const { h, w } = pieces.bbox(p.cells);
-      const cs = Math.min(10, Math.floor((pn.w - 8) / w), Math.floor((pn.h - 8) / h));
+      const cs = Math.min(Math.round(BOARD.cell * 0.32), Math.floor((pn.w - 8) / w), Math.floor((pn.h - 8) / h));
       const ox = pn.x + Math.floor((pn.w - w * cs) / 2), oy = pn.y + Math.floor((pn.h - h * cs) / 2);
       for (const [r, c] of p.cells) block(ox + c * cs, oy + r * cs, cs, CARD_COLORS[i % CARD_COLORS.length]);
       if (hover) glove(pn.x + pn.w - 12, pn.y + pn.h - 26);
@@ -1987,7 +2004,8 @@ const recognize = (() => {
   }
 
   /* 손패 카드: 배경과 먼 픽셀을 조각으로 보고 외접 사각형에서 칸 크기를 추정한다 */
-  function readCard(img, rect) {
+  // cellHint: 카드 위 조각 한 칸의 예상 크기(px). 꽉 찬 막대(ㅣ·ㅡ)는 칸 크기로만 길이를 가를 수 있다.
+  function readCard(img, rect, candidates = null, cellHint = 0) {
     const x0 = Math.round(rect.x - img.x0), y0 = Math.round(rect.y - img.y0);
     const w = Math.round(rect.w), h = Math.round(rect.h);
     if (w < 8 || h < 8) return null;
@@ -2006,6 +2024,8 @@ const recognize = (() => {
     for (let y = 3; y < h - 3; y++) for (const x of [1, 2, w - 3, w - 2]) addBg(x, y);
     const top = [...buckets.values()].sort((a, b) => b[3] - a[3])[0];
     const bg = [top[0] / top[3], top[1] / top[3], top[2] / top[3]];
+    // 사용한 카드는 조각 칸 전체가 진한 하늘색 '사용 완료' 판으로 덮인다. 평소 바탕(흰색·노란 크림색)은 채도가 낮다.
+    if (Math.max(...bg) - Math.min(...bg) > 110 && bg[2] > 170 && bg[2] > bg[0] + 90) return { cells: null, used: true, occluded: false };
     // 조각 칸은 채도가 높은 색(파랑·분홍·노랑·초록)이고, 손 모양 커서는 흰색·회색·검은 테두리라 채도가 낮다.
     // 채도가 낮은 픽셀은 조각에서 빼고, 굵은 검은 테두리가 보이면 커서가 카드 위에 있다고 표시한다.
     const sat = p => Math.max(p[0], p[1], p[2]) - Math.min(p[0], p[1], p[2]);
@@ -2068,6 +2088,31 @@ const recognize = (() => {
       }
       return n ? s / n : 0;
     };
+    // 나오는 조각이 정해져 있으면(candidates) 자유롭게 격자를 추정하지 않고, 조각 16종의 방향마다
+    // 외접 사각형에 맞춰 칸이 찬 정도가 가장 잘 맞는 조각으로 확정한다.
+    if (candidates?.length) {
+      let best = null;
+      for (const cand of candidates) {
+        for (const o of cand.orients) {
+          const cw = bw / o.w, ch = bh / o.h;
+          const sq = Math.abs(cw - ch) / Math.max(cw, ch);
+          const on = new Set(o.cells.map(([r, c]) => r * 64 + c));
+          let s = 0;
+          for (let r = 0; r < o.h; r++) {
+            for (let c = 0; c < o.w; c++) {
+              const f = frac(bx0 + (c + 0.3) * cw, by0 + (r + 0.3) * ch, 0.4 * cw, 0.4 * ch);
+              s += on.has(r * 64 + c) ? f : 1 - f;
+            }
+          }
+          // 칸 크기가 예상과 다르거나(예상값이 있을 때) 정사각형에서 벗어날수록 감점 (외접 사각형 비율이 맞지 않는 조각을 거른다)
+          const dev = cellHint ? (Math.abs(cw - cellHint) + Math.abs(ch - cellHint)) / (2 * cellHint) : 0;
+          const pen = cellHint ? 1.5 * Math.max(0, dev - 0.15) : 2 * Math.max(0, sq - 0.12);
+          const score = s / (o.w * o.h) - pen;
+          if (!best || score > best.score) best = { cells: o.cells, key: cand.key, name: cand.name, score, R: o.h, C: o.w };
+        }
+      }
+      return { ...best, occluded };
+    }
     let best = null;
     for (let R = 1; R <= 6; R++) {
       for (let C = 1; C <= 6; C++) {
@@ -2459,6 +2504,18 @@ const ui = (() => {
       list.push({ key, name: p.name || '', cells: p.cells, seen: e.seen && typeof e.seen === 'object' ? e.seen : {}, ...(e.unsure ? { unsure: true } : {}) });
     }
     return { version: 1, presetVersion: d.presetVersion, pieces: list };
+  }
+
+  // 손패 인식 후보: 사전 조각마다 회전·반전 방향들 (사전이 바뀔 때만 다시 만든다)
+  let candCache = { src: null, n: 0, list: [] };
+  function dictCandidates() {
+    if (candCache.src !== dict || candCache.n !== dict.pieces.length) {
+      candCache = {
+        src: dict, n: dict.pieces.length,
+        list: dict.pieces.map(e => { const p = core.makePiece(e); return { key: p.key, name: e.name, orients: p.orients }; }),
+      };
+    }
+    return candCache.list;
   }
 
   const dictFind = cells => {
@@ -3399,18 +3456,20 @@ const ui = (() => {
       }
     }
 
-    // 카드 위에 커서가 있으면(굵은 검은 테두리) 읽은 모양이 사전에 있을 때만 믿고, 아니면 직전 확정 모양을 유지한다
+    // 손패는 조각 사전(16종)에서 가장 가까운 조각으로 확정한다.
+    // 카드 위 커서(굵은 검은 테두리)가 조각을 가려 잘 맞지 않으면 직전 확정 모양을 유지한다. '사용 완료' 카드는 빈 칸.
+    const cands = dictCandidates();
     const hand = px.hand.map((r, i) => {
-      const h = recognize.readCard(img, r);
-      if (!h) return null;
-      const cells = h.cells && pieces.normalize(h.cells);
-      const known = cells && dictFind(cells);
-      const hold = h.occluded && !known && prev;
-      return { cells: hold ? prev.hand[i]?.cells ?? null : cells, occluded: h.occluded, held: !!hold, known: !!known, grid: h.cells ? `${h.C}×${h.R}` : '-' };
+      const h = recognize.readCard(img, r, cands, (px.board.w / COLS) * settings.cardCellRatio);
+      if (!h || h.used) return null;
+      const weak = h.score !== undefined && h.score < 0.9;
+      const hold = h.occluded && (weak || !h.cells) && prev;
+      const cells = hold ? prev.hand[i]?.cells ?? null : h.cells && pieces.normalize(h.cells);
+      return { cells, occluded: h.occluded, held: !!hold, score: h.score, name: h.name };
     });
     recog.handDebug = hand;
     recog.cursorOnCard = hand.some(h => h?.held);
-    recog.unknownCards = hand.map((h, i) => (h?.cells && !h.held && !h.known ? i + 1 : 0)).filter(Boolean);
+    recog.unsureCards = hand.map((h, i) => (h?.cells && !h.held && h.score !== undefined && h.score < 0.8 ? i + 1 : 0)).filter(Boolean);
     const obs = { board: merged.board, items, hand: hand.map(h => h?.cells ? { cells: h.cells } : null) };
     const key = obsKey(obs);
     if (key === recog.lastKey) recog.stable++;
@@ -3616,7 +3675,7 @@ const ui = (() => {
     if (recog.preview) notes.push('마우스 미리보기가 보입니다. 마우스를 판 밖으로 옮겨 주세요. 미리보기가 떠 있는 동안은 직전 상태를 유지합니다.');
     if (recog.unknown) notes.push(`아직 확정하지 못한 칸 ${recog.unknown}개는 빈칸으로 둡니다.`);
     if (recog.cursorOnCard) notes.push('손패 카드 위의 커서가 조각을 가려 직전 모양을 유지합니다.');
-    if (recog.unknownCards?.length) notes.push(`손패 ${recog.unknownCards.join('·')}번은 조각 사전에 없는 모양입니다. 잘못 읽었으면 카드를 눌러 고치고, 맞으면 이름을 붙여 사전에 저장하세요.`);
+    if (recog.unsureCards?.length) notes.push(`손패 ${recog.unsureCards.join('·')}번은 가장 가까운 조각으로 골랐지만 확실하지 않습니다. 틀리면 카드를 눌러 고치세요.`);
     if (!settings.iconTemplates.dot.length && !settings.iconTemplates.swap.length) notes.push('능력 아이콘 템플릿이 없어 아이콘은 인식하지 않습니다. 보정 → 템플릿 등록으로 아이콘 칸을 눌러 주세요.');
     $('#liveNote').textContent = notes.join(' ');
     if (capture.kind === 'fake') {
@@ -4125,6 +4184,7 @@ const ui = (() => {
         { path: 'tGloss', label: 'T_gloss', desc: '좌상단 광택과 중앙의 밝기 차', kind: 'range', min: 0, max: 120, step: 1 },
         { path: 'tIcon', label: 'T_icon', desc: '능력 아이콘 템플릿 상관값', kind: 'range', min: 0.2, max: 0.95, step: 0.01 },
         { path: 'previewTol', label: '미리보기 색 허용 오차', desc: '초록·X·예고 색과의 RGB 거리', kind: 'range', min: 5, max: 90, step: 1 },
+        { path: 'cardCellRatio', label: '카드 칸 크기 비율', desc: '손패 조각 한 칸 ÷ 판 한 칸', kind: 'range', min: 0.2, max: 0.5, step: 0.01 },
       ],
     },
     {
@@ -4710,6 +4770,7 @@ const selftest = (() => {
       const g = cv.getContext('2d', { willReadFrequently: true });
       const saved = { ...fakeScreen.opts };
       const wrong = [];
+      const cands = config.PIECE_PRESET.map(pc => { const pp = core.makePiece({ cells: config.presetCells(pc.rows) }); return { key: pp.key, name: pc.name, orients: pp.orients }; });
       try {
         for (const pc of config.PIECE_PRESET) {
           const cells = config.presetCells(pc.rows);
@@ -4719,8 +4780,12 @@ const selftest = (() => {
             g.drawImage(fakeScreen.canvas, 0, 0);
             const img = { data: g.getImageData(0, 0, cv.width, cv.height).data, width: cv.width, height: cv.height, x0: 0, y0: 0 };
             p.hand.forEach((r, i) => {
-              const h = recognize.readCard(img, r);
-              if (!h?.cells || core.cellsKey(core.normalize(h.cells)) !== core.cellsKey(core.normalize(cells))) wrong.push(`${pc.name}${cardCursor ? '+커서' : ''} 카드${i + 1}`);
+              // 실제 경로처럼 16종 중 가장 가까운 조각으로 확정 (자유 격자 추정도 함께 확인)
+              const h = recognize.readCard(img, r, cands, (p.board.w / 10) * config.RECOG.cardCellRatio);
+              const free = recognize.readCard(img, r);
+              const same = x => x?.cells && core.cellsKey(core.normalize(x.cells)) === core.cellsKey(core.normalize(cells));
+              if (!same(h) || h.score < 0.9) wrong.push(`${pc.name}${cardCursor ? '+커서' : ''} 카드${i + 1}(${h?.name ?? '-'} ${h?.score?.toFixed(2)})`);
+              if (!same(free)) wrong.push(`${pc.name}${cardCursor ? '+커서' : ''} 카드${i + 1} 자유 격자`);
             });
           }
         }
@@ -4728,6 +4793,20 @@ const selftest = (() => {
         Object.assign(fakeScreen.opts, saved);
       }
       return { pass: !wrong.length, detail: wrong.length ? `틀림: ${wrong.join(', ')}` : '96번 모두 일치' };
+    });
+
+    t('사용 완료 카드는 빈 칸으로 읽음', () => {
+      const p = fakeScreen.preset();
+      const cv = document.createElement('canvas');
+      cv.width = fakeScreen.W;
+      cv.height = fakeScreen.H;
+      const g = cv.getContext('2d', { willReadFrequently: true });
+      fakeScreen.render({ ...empty(), hand: [{ cells: I5 }, null, null], abilities: { dot: 0, swap: 0, untilNext: 7 }, clearedLines: 0 });
+      g.drawImage(fakeScreen.canvas, 0, 0);
+      const img = { data: g.getImageData(0, 0, cv.width, cv.height).data, width: cv.width, height: cv.height, x0: 0, y0: 0 };
+      const r = p.hand.map(rc => recognize.readCard(img, rc));
+      const ok = r[0]?.cells?.length === 5 && !r[0].used && r[1]?.used && r[2]?.used && !r[1].cells && !r[2].cells;
+      return { pass: !!ok, detail: r.map(x => (x?.used ? '사용 완료' : x?.cells ? `${x.cells.length}칸` : '없음')).join(' · ') };
     });
 
     t('숫자 읽기: 배운 글자로 다른 수를 읽고, 모르는 글자는 읽지 않음', () => {
