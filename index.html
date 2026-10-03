@@ -410,10 +410,10 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-b
   <div id="settingsBody"></div>
   <div class="group">
     <h3>조각 사전</h3>
-    <span class="hint">손패에서 이름을 붙여 저장한 모양입니다. 회전·반전이 달라도 같은 조각으로 알아봅니다. '배치 불가 조각' 평가와 바꿔 뽑기 판단, 시뮬레이터에 쓰입니다.</span>
+    <span class="hint">게임의 조각 16종입니다. 회전·반전이 달라도 같은 조각으로 알아봅니다. 손패 인식 확인, '배치 불가 조각' 평가, 바꿔 뽑기 판단, 시뮬레이터에 쓰입니다.</span>
     <div class="dict-list" id="dictList"></div>
     <div class="row-btns">
-      <button class="btn sm" type="button" id="btnDictPreset" title="보내 주신 조각 이미지에서 읽은 모양을 사전에 더합니다">기본 조각 불러오기</button>
+      <button class="btn sm" type="button" id="btnDictPreset" title="사전을 16종 기본 조각으로 되돌립니다 (등장 기록은 유지)">16종으로 되돌리기</button>
       <button class="btn sm" type="button" id="btnDictExport">내보내기</button>
       <button class="btn sm" type="button" id="btnDictImport">가져오기</button>
       <input type="file" id="dictFile" accept="application/json,.json" hidden />
@@ -518,25 +518,27 @@ const config = (() => {
   // 시뮬레이터 기본값. iconEvery는 미확인 규칙이라 시뮬레이션 가정값으로만 쓴다.
   const SIM = { games: 20, maxTurns: 80, iconEvery: 7, beam: 4, seed: 1, useAbilities: false };
 
-  // 사용자가 보낸 조각 이미지(2026-10-03, 16종이 전부)에서 읽은 모양. X = 칸.
-  // ㅏ 4칸·ㄱ 4칸·ㅡ 3칸은 게임 화면 캡처의 카드 라벨로 확인했다. 확인 필요 표시는 이미지가 작아 읽기가 불확실한 것.
-  // 16종 중 2종(초록 ㅍ 비슷한 것, 노란 넓은 십자)은 읽지 못해 넣지 않았다. 손패 편집으로 사전에 추가한다.
+  // 조각은 16종이 전부다 (사용자가 보낸 조각 이미지 16장을 픽셀 단위로 읽은 모양, 2026-10-03). X = 칸.
+  // ㅇ·ㅈ·ㅎ·ㅅ처럼 대각선으로만 이어진 칸이 있다. 카드에 처음 그려지는 방향 그대로다.
   const PIECE_PRESET = [
-    { name: 'ㅂ', rows: ['X.X', 'XXX', 'X.X', 'XXX'] },
-    { name: 'ㄱ', rows: ['XXX', '..X', '..X', '..X'], unsure: true },
-    { name: 'ㅣ', rows: ['X', 'X', 'X', 'X', 'X'] },
-    { name: 'ㅏ', rows: ['X.', 'XX', 'X.'] },
-    { name: 'ㆍ', rows: ['X'] },
-    { name: 'ㄷ', rows: ['XXX', 'X..', 'XXX'], unsure: true },
-    { name: 'ㄴ', rows: ['X.', 'XX'] },
-    { name: 'ㅡ', rows: ['XXX'] },
-    { name: 'ㅌ', rows: ['XX', 'X.', 'XX', 'X.', 'XX'], unsure: true },
-    { name: 'ㅅ', rows: ['.X.', 'X.X'] },
-    { name: 'ㄹ', rows: ['XX', '.X', 'XX', 'X.', 'XX'], unsure: true },
-    { name: 'ㅊ', rows: ['.X.', 'XXX', '.X.', 'X.X'] },
-    { name: '십', rows: ['.X.', 'XXX', '.X.'] },
     { name: 'ㄱ', rows: ['XX', '.X', '.X'] },
+    { name: 'ㅎ', rows: ['..X..', 'XXXXX', '.X.X.', '..X..'] },
+    { name: 'ㅈ', rows: ['XXX', '.X.', 'X.X'] },
+    { name: 'ㅇ', rows: ['.X.', 'X.X', '.X.'] },
+    { name: 'ㅊ', rows: ['.X.', 'XXX', '.X.', 'X.X'] },
+    { name: 'ㄹ', rows: ['XX', '.X', 'XX', 'X.', 'XX'] },
+    { name: 'ㅅ', rows: ['.X.', 'X.X'] },
+    { name: 'ㅑ', rows: ['X.', 'XX', 'X.', 'XX', 'X.'] },
+    { name: 'ㅡ', rows: ['XXX'] },
+    { name: 'ㄴ', rows: ['X.', 'XX'] },
+    { name: 'ㄷ', rows: ['XX', 'X.', 'XX'] },
+    { name: 'ㆍ', rows: ['X'] },
+    { name: 'ㅏ', rows: ['X.', 'XX', 'X.'] },
+    { name: 'ㅣ', rows: ['X', 'X', 'X', 'X', 'X'] },
+    { name: 'ㅋ', rows: ['XX', '.X', 'XX', '.X'] },
+    { name: 'ㅂ', rows: ['X.X', 'XXX', 'X.X', 'XXX'] },
   ];
+  const PRESET_VERSION = 2;
   const presetCells = rows => rows.flatMap((line, r) => [...line].flatMap((ch, c) => (ch === 'X' ? [[r, c]] : [])));
 
   const SETTINGS_VERSION = 1;
@@ -584,7 +586,7 @@ const config = (() => {
     return hi === undefined ? `${lo}줄 이상` : `${lo}~${hi - 1}줄`;
   }
 
-  return { RULES, WEIGHTS, SOLVER, RECOG, RECOG_CONST, SIM, PIECE_PRESET, presetCells, SETTINGS_VERSION, clone, defaultWeights, defaultSettings, lineScore, stageOf, stageRange };
+  return { RULES, WEIGHTS, SOLVER, RECOG, RECOG_CONST, SIM, PIECE_PRESET, PRESET_VERSION, presetCells, SETTINGS_VERSION, clone, defaultWeights, defaultSettings, lineScore, stageOf, stageRange };
 })();
 
 /* ================================================================
@@ -2424,16 +2426,27 @@ const ui = (() => {
 
   /* ---------- 조각 사전 ---------- */
 
+  function presetDict(old) {
+    const seen = new Map((old?.pieces ?? []).filter(e => e?.cells).map(e => [core.canonicalKey(pieces.normalize(e.cells)), e.seen]));
+    return {
+      version: 1,
+      presetVersion: config.PRESET_VERSION,
+      pieces: config.PIECE_PRESET.map(p => {
+        const cells = pieces.normalize(config.presetCells(p.rows));
+        const key = core.canonicalKey(cells);
+        const s = seen.get(key);
+        return { key, name: p.name, cells, seen: s && typeof s === 'object' ? s : {} };
+      }),
+    };
+  }
+
   function loadDict() {
     const d = storage.load(storage.KEYS.dict);
-    if (!d || !Array.isArray(d.pieces)) {
-      return {
-        version: 1,
-        pieces: config.PIECE_PRESET.map(p => {
-          const cells = pieces.normalize(config.presetCells(p.rows));
-          return { key: core.canonicalKey(cells), name: p.name, cells, seen: {}, ...(p.unsure ? { unsure: true } : {}) };
-        }),
-      };
+    // 조각은 16종으로 정해져 있다. 사전이 없거나 예전 기본 조각으로 만든 사전이면 새 16종으로 바꾸고 등장 기록만 옮긴다.
+    if (!d || !Array.isArray(d.pieces) || d.presetVersion !== config.PRESET_VERSION) {
+      const fresh = presetDict(d);
+      persist(storage.KEYS.dict, fresh);
+      return fresh;
     }
     const list = [];
     const keys = new Set();
@@ -2445,7 +2458,7 @@ const ui = (() => {
       keys.add(key);
       list.push({ key, name: p.name || '', cells: p.cells, seen: e.seen && typeof e.seen === 'object' ? e.seen : {}, ...(e.unsure ? { unsure: true } : {}) });
     }
-    return { version: 1, pieces: list };
+    return { version: 1, presetVersion: d.presetVersion, pieces: list };
   }
 
   const dictFind = cells => {
@@ -4362,18 +4375,13 @@ const ui = (() => {
     });
 
     $('#btnDictPreset').addEventListener('click', () => {
-      let added = 0;
-      for (const p of config.PIECE_PRESET) {
-        const cells = pieces.normalize(config.presetCells(p.rows));
-        const before = dict.pieces.length;
-        const e = dictUpsert(cells, dictFind(cells)?.name || p.name);
-        if (dict.pieces.length > before) { added++; if (p.unsure) e.unsure = true; }
-      }
+      if (!confirm('조각 사전을 기본 16종으로 되돌립니다. 등장 기록은 그대로 둡니다.')) return;
+      dict = presetDict(dict);
       persist(storage.KEYS.dict, dict);
       renderDict();
       renderHand();
       requestSolve();
-      toast(added ? `기본 조각 ${added}종을 사전에 더했습니다. '확인 필요' 표시가 붙은 모양을 확인해 주세요.` : '기본 조각은 이미 사전에 있습니다.');
+      toast('조각 사전을 기본 16종으로 되돌렸습니다.');
     });
 
     $('#btnDictExport').addEventListener('click', () => {
@@ -4686,6 +4694,40 @@ const selftest = (() => {
       } finally {
         Object.assign(fakeScreen.opts, saved);
       }
+    });
+
+    t('조각 16종: 모두 다른 모양이고 한 덩어리', () => {
+      const keys = new Set(config.PIECE_PRESET.map(p => core.canonicalKey(config.presetCells(p.rows))));
+      const ok = config.PIECE_PRESET.every(p => pieces.isConnected(config.presetCells(p.rows)));
+      return { pass: keys.size === 16 && ok, detail: `${keys.size}종` };
+    });
+
+    t('손패 인식: 16종 × 카드 3장, 커서·노란 카드 포함', () => {
+      const p = fakeScreen.preset();
+      const cv = document.createElement('canvas');
+      cv.width = fakeScreen.W;
+      cv.height = fakeScreen.H;
+      const g = cv.getContext('2d', { willReadFrequently: true });
+      const saved = { ...fakeScreen.opts };
+      const wrong = [];
+      try {
+        for (const pc of config.PIECE_PRESET) {
+          const cells = config.presetCells(pc.rows);
+          for (const cardCursor of [false, true]) {
+            Object.assign(fakeScreen.opts, { preview: false, cursor: false, cardCursor, blur: true });
+            fakeScreen.render({ ...empty(), hand: [{ cells }, { cells }, { cells }], abilities: { dot: 0, swap: 0, untilNext: 7 }, clearedLines: 0 });
+            g.drawImage(fakeScreen.canvas, 0, 0);
+            const img = { data: g.getImageData(0, 0, cv.width, cv.height).data, width: cv.width, height: cv.height, x0: 0, y0: 0 };
+            p.hand.forEach((r, i) => {
+              const h = recognize.readCard(img, r);
+              if (!h?.cells || core.cellsKey(core.normalize(h.cells)) !== core.cellsKey(core.normalize(cells))) wrong.push(`${pc.name}${cardCursor ? '+커서' : ''} 카드${i + 1}`);
+            });
+          }
+        }
+      } finally {
+        Object.assign(fakeScreen.opts, saved);
+      }
+      return { pass: !wrong.length, detail: wrong.length ? `틀림: ${wrong.join(', ')}` : '96번 모두 일치' };
     });
 
     t('숫자 읽기: 배운 글자로 다른 수를 읽고, 모르는 글자는 읽지 않음', () => {
