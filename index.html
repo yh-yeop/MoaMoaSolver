@@ -502,7 +502,8 @@ const config = (() => {
     { key: 'stuckNoAbility', value: -2000, label: '막힘 (능력 0개)',   desc: '능력 없이 놓을 수 없는 조각이 생김' },
   ];
 
-  const SOLVER = { budgetMs: 700, beamWidth: 16, thetaDot: 300, thetaSwap: 300, swapMinDict: 4 };
+  // replanEach: 계획대로 둬도 놓을 때마다 다시 계산 (끄면 계획과 다르게 두거나 손패가 바뀔 때만 다시 계산)
+  const SOLVER = { budgetMs: 700, beamWidth: 16, thetaDot: 300, thetaSwap: 300, swapMinDict: 4, replanEach: false };
 
   // 인식 임계값은 실제 화면에서 정한다. 아래는 슬라이더의 시작 위치일 뿐이다.
   // cardCellRatio: 손패 카드의 조각 한 칸 ÷ 판 한 칸 (게임 캡처에서 약 8.4px ÷ 26px)
@@ -1981,15 +1982,18 @@ const recognize = (() => {
     const g = luma(gloss) - luma(center);
     const d = deltaE(rgb2lab(center), baseLab.center[i]);
     const e = baseLab.ring ? deltaE(rgb2lab(ring), baseLab.ring[i]) : Math.max(0, luma(center) - luma(ring));
-    let cls;
+    let cls, pFill = 0.5;
     if (Math.abs(g) < 20 && rgbDist(center, opt.colors.green) < opt.previewTol) cls = 'pg';
     else if (Math.abs(g) < 20 && rgbDist(center, opt.colors.x) < opt.previewTol) cls = 'px';
     else if (rgbDist(center, opt.colors.forecast) < opt.previewTol) cls = 'fc';
     else {
-      const votes = (d > opt.tFill) + (e > opt.tEdge) + (g > opt.tGloss);
-      cls = votes >= 2 ? 'fill' : votes === 0 ? 'empty' : 'unsure';
+      // 신호마다 임계값의 0.6배에서 0, 1.4배에서 1이 되는 부드러운 점수. 임계값 근처 값이 프레임마다 뒤집히지 않게 한다.
+      const sv = (x, t) => Math.max(0, Math.min(1, (x - 0.6 * t) / (0.8 * t)));
+      const score = sv(d, opt.tFill) + sv(e, opt.tEdge) + sv(g, opt.tGloss);
+      cls = score >= 1.5 ? 'fill' : score <= 0.6 ? 'empty' : 'unsure';
+      pFill = 1 / (1 + Math.exp(-3 * (score - 1.1)));   // 찬 칸일 확률 (판을 합법적인 수로 맞출 때 씀)
     }
-    return { cls, d, e, g, rgb: center };
+    return { cls, d, e, g, p: pFill, rgb: center };
   }
 
   function readBoard(img, board, baseLab, opt) {
@@ -2380,7 +2384,8 @@ const ui = (() => {
   let tool = 'fill';
 
   // 추천 상태
-  const reco = { results: [], hand: [null, null, null], notes: [], stats: null, done: true, sel: 0, pending: false, error: null };
+  // progress: 고른 계획에서 이미 둔 수의 개수. 계획대로 두면 다시 계산하지 않고 다음 수로 넘어간다.
+  const reco = { results: [], hand: [null, null, null], notes: [], stats: null, done: true, sel: 0, progress: 0, pending: false, error: null };
 
   // 빠르게 드래그하면 포인터 이벤트 사이에 칸이 빠지므로, 두 칸 사이를 직선으로 잇는 칸들을 돌려준다.
   function cellsBetween(a, b) {
@@ -2608,6 +2613,7 @@ const ui = (() => {
     }
     reco.pending = true;
     reco.error = null;
+    reco.progress = 0;
     updateStatus();
     renderReco();
     const m0 = mode;
@@ -2616,6 +2622,7 @@ const ui = (() => {
       if (m0 !== mode) return;
       reco.results = m.results || [];
       reco.hand = handSnap;
+      reco.progress = 0;
       reco.notes = m.notes || [];
       reco.stats = m.stats;
       reco.done = !!m.done;
@@ -2787,6 +2794,7 @@ const ui = (() => {
     if (!result) return;
     const cell = (r, c) => { const o = cellRect(r, c); return { ...o, w: o.w ?? o.s, h: o.h ?? o.s }; };
     const font = getComputedStyle(document.body).fontFamily;
+    const off = result.offset || 0;
     result.steps.forEach((st, i) => {
       const nowStep = i === 0;
       for (const [r, c] of st.cells) {
@@ -2809,7 +2817,7 @@ const ui = (() => {
       if (st.cells.length) {
         const [r0, c0] = st.cells.reduce((a, b) => (b[0] < a[0] || (b[0] === a[0] && b[1] < a[1]) ? b : a));
         const { x, y, s, w, h } = cell(r0, c0);
-        const label = CIRCLED[i] ?? String(i + 1);
+        const label = CIRCLED[i + off] ?? String(i + off + 1);
         g.font = `700 ${Math.round(s * 0.5)}px ${font}`;
         g.textAlign = 'center';
         g.textBaseline = 'middle';
@@ -2832,7 +2840,7 @@ const ui = (() => {
       if (st.lines) {
         const a = cell(st.clearedRows[0], 0), b = cell(st.clearedRows[0], COLS - 1);
         const gotText = [st.gotDot ? '+점 찍기' : '', st.gotSwap ? '+바꿔 뽑기' : ''].filter(Boolean).join(' ');
-        const label = `${CIRCLED[i] ?? i + 1} ${st.lines}줄 +${fmt(st.lineScore)}${gotText ? ' ' + gotText : ''}`;
+        const label = `${CIRCLED[i + off] ?? i + off + 1} ${st.lines}줄 +${fmt(st.lineScore)}${gotText ? ' ' + gotText : ''}`;
         g.font = `700 ${Math.round(a.s * 0.42)}px ${font}`;
         const tw = g.measureText(label).width + 10;
         const lx = (a.x + b.x + b.w) / 2 - tw / 2, ly = Math.max(0, a.y - a.s * 0.62);
@@ -2848,7 +2856,28 @@ const ui = (() => {
     });
   }
 
-  const selectedResult = () => reco.results[reco.sel] ?? null;
+  // 지금 보여 줄 계획: 고른 결과에서 이미 둔 수를 뺀 나머지. offset은 번호(①②③)를 이어 붙이는 데 쓴다.
+  function selectedResult() {
+    const res = reco.results[reco.sel];
+    if (!res) return null;
+    const k = reco.progress;
+    if (!k) return res;
+    if (k >= res.steps.length) return null;
+    return { ...res, actions: res.actions.slice(k), steps: res.steps.slice(k), offset: k };
+  }
+  const planDone = () => !!reco.results[reco.sel] && reco.progress >= reco.results[reco.sel].steps.length;
+
+  const sameCells = (a, b) => a.length === b.length && core.cellsKey([...a].sort((x, y) => x[0] - y[0] || x[1] - y[1])) === core.cellsKey([...b].sort((x, y) => x[0] - y[0] || x[1] - y[1]));
+
+  // 방금 둔 수가 계획(또는 대안)의 다음 수와 같으면 계획을 한 칸 진행한다
+  function advancePlan(move) {
+    const k = reco.progress;
+    const idx = reco.results.findIndex((r, i) => (k === 0 || i === reco.sel) && r.steps[k] && sameCells(r.steps[k].cells, move.cells));
+    if (idx < 0) return false;
+    reco.sel = idx;
+    reco.progress = k + 1;
+    return true;
+  }
 
   function renderBoard() {
     const s = G.cs;
@@ -3085,7 +3114,7 @@ const ui = (() => {
       const rc = cards[a.piece];
       if (!rc) return;
       if (a.type === 'swap') labelAt(g, '바꿔 뽑기', rc.x, rc.y, '#C47CF2');
-      else labelAt(g, CIRCLED[k], rc.x, rc.y, k === 0 ? '#F3C969' : '#fff');
+      else labelAt(g, CIRCLED[k + (res.offset || 0)], rc.x, rc.y, k === 0 ? '#F3C969' : '#fff');
       if (k === 0) {
         g.strokeStyle = a.type === 'swap' ? '#C47CF2' : '#F3C969';
         g.lineWidth = 2.5;
@@ -3436,6 +3465,7 @@ const ui = (() => {
 
   const obsKey = o => [o.board.join(','), o.items.dot.join(','), o.items.swap.join(','), ...o.hand.map(p => (p ? core.canonicalKey(p.cells) + '@' + core.cellsKey(p.cells) : '-'))].join('|');
   const cloneObs = o => ({
+    move: null,
     board: o.board.slice(),
     items: { dot: o.items.dot.slice(), swap: o.items.swap.slice() },
     hand: o.hand.map(p => p && { cells: p.cells.map(x => x.slice()) }),
@@ -3487,6 +3517,10 @@ const ui = (() => {
 
     // 손패는 조각 사전(17종)에서 가장 가까운 조각으로 확정한다.
     // 카드 위 커서(굵은 검은 테두리)가 조각을 가려 잘 맞지 않으면 직전 확정 모양을 유지한다. '사용 완료' 카드는 빈 칸.
+    // 판은 합법적인 수로만 바뀐다. 직전 확정 판에서 가능한 수 중 이번 프레임과 가장 잘 맞는 판을 고른다.
+    const snap = prev ? snapBoard(prev, read) : null;
+    recog.snap = snap;
+
     const cands = dictCandidates();
     const hand = px.hand.map((r, i) => {
       const h = recognize.readCard(img, r, cands, (px.board.w / COLS) * settings.cardCellRatio);
@@ -3499,7 +3533,11 @@ const ui = (() => {
     recog.handDebug = hand;
     recog.cursorOnCard = hand.some(h => h?.held);
     recog.unsureCards = hand.map((h, i) => (h?.cells && !h.held && h.score !== undefined && h.score < 0.8 ? i + 1 : 0)).filter(Boolean);
-    const obs = { board: merged.board, items, hand: hand.map(h => h?.cells ? { cells: h.cells } : null) };
+    const obs = { board: snap ? snap.board : merged.board, items, hand: hand.map(h => h?.cells ? { cells: h.cells } : null), move: snap?.move ?? null };
+    if (snap?.move) {
+      // 지운 줄의 아이콘은 사라진다
+      for (const r of snap.cleared) { obs.items.dot[r] = 0; obs.items.swap[r] = 0; }
+    }
     const key = obsKey(obs);
     if (key === recog.lastKey) recog.stable++;
     else { recog.lastKey = key; recog.stable = 1; }
@@ -3507,7 +3545,7 @@ const ui = (() => {
     if (key === recog.confirmedKey) {
       if (recog.issue) { recog.issue = null; setAlert(null); }
     } else if (recog.stable >= RC.stableFrames) {
-      const check = consistency(prev, obs, merged.issues);
+      const check = consistency(prev, obs, snap ? 0 : merged.issues);
       if (check.ok) confirmObs(obs, key, check);
       else if (recog.issue?.key !== key) {
         recog.issue = { key, obs, check };
@@ -3519,6 +3557,67 @@ const ui = (() => {
     }
     renderLiveNote();
     updateStatus();
+  }
+
+  // 직전 확정 판에서 가능한 수(그대로 / 손패 조각 하나 놓기 / 점 찍기 한 칸, 줄 삭제 포함) 중
+  // 칸별 확률과 가장 잘 맞는 판을 고른다. 몇 칸의 잡음이나 미리보기·커서는 이렇게 걸러진다.
+  // 어떤 수로도 설명되지 않으면(새 게임, 여러 수를 한꺼번에 둠 등) null을 돌려주고 칸별 판정을 쓴다.
+  function snapBoard(prev, read) {
+    const N = ROWS * COLS;
+    const ll1 = new Float64Array(N), ll0 = new Float64Array(N);
+    for (let i = 0; i < N; i++) {
+      const p = Math.min(0.97, Math.max(0.03, read.cells[i].p));
+      ll1[i] = Math.log(p);
+      ll0[i] = Math.log(1 - p);
+    }
+    const bit = (b, r, c) => (b[r] >> c) & 1;
+    let base = 0;
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) base += bit(prev.board, r, c) ? ll1[r * COLS + c] : ll0[r * COLS + c];
+    let best = { gain: 0, move: null };
+    const tryCells = (cells, move) => {
+      let gain = 0;
+      const rows = new Map();
+      for (const [r, c] of cells) {
+        gain += ll1[r * COLS + c] - ll0[r * COLS + c];
+        rows.set(r, (rows.get(r) ?? prev.board[r]) | (1 << c));
+      }
+      for (const [r, v] of rows) if (v === FULL) for (let c = 0; c < COLS; c++) gain += ll0[r * COLS + c] - ll1[r * COLS + c];
+      if (gain > best.gain) best = { gain, move: { ...move, cells } };
+    };
+    const seen = new Set();
+    prev.hand.forEach((h, slot) => {
+      if (!h) return;
+      const piece = core.makePiece(h);
+      if (seen.has(piece.key)) return;
+      seen.add(piece.key);
+      for (const o of piece.orients) {
+        for (let r = 0; r <= ROWS - o.h; r++) {
+          for (let c = 0; c <= COLS - o.w; c++) {
+            if (!core.fits(prev.board, o, r, c)) continue;
+            tryCells(o.cells.map(([y, x]) => [y + r, x + c]), { kind: 'place', slot });
+          }
+        }
+      }
+    });
+    if (live.abilities.dot > 0) {
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (!bit(prev.board, r, c)) tryCells([[r, c]], { kind: 'dot' });
+    }
+    // 아무 수도 없다고 보는 것보다 확실히 나아야 수를 둔 것으로 본다 (미리보기 칸은 확률 0.5라 차이를 만들지 않는다)
+    const move = best.gain >= 3 ? best.move : null;
+    const board = prev.board.slice();
+    const cleared = [];
+    if (move) {
+      for (const [r, c] of move.cells) board[r] |= 1 << c;
+      for (let r = 0; r < ROWS; r++) if (board[r] === FULL) { board[r] = 0; cleared.push(r); }
+    }
+    // 확실한 칸이 이 판과 여럿 어긋나면 합법적인 한 수로 설명되지 않는 것
+    let mismatch = 0;
+    for (let i = 0; i < N; i++) {
+      const p = read.cells[i].p, b = bit(board, Math.floor(i / COLS), i % COLS);
+      if ((p > 0.85 && !b) || (p < 0.15 && b)) mismatch++;
+    }
+    if (mismatch > 2) return null;
+    return { board, move, cleared };
   }
 
   // 직전 확정 상태에서 조각을 놓았다면: 채움 칸(새) = 채움 칸(이전) + 놓은 칸 − 10 × 지운 줄
@@ -3601,7 +3700,28 @@ const ui = (() => {
     }
     if (notes.length) toast(notes.join(' · '));
     saveLive();
+    // 다시 계산할지: 새 게임·손패가 바뀜(리필, 바꿔 뽑기)·계획과 다른 수면 다시, 계획대로면 다음 수로 진행만
+    const pieceKey = p => (p ? core.canonicalKey(p.cells) : '');
+    const handChanged = !prev || obs.hand.some((p, i) => p && pieceKey(p) !== pieceKey(prev.hand[i]));
+    const boardChanged = !prev || obs.board.some((v, r) => v !== prev.board[r]);
+    if (check.newGame || handChanged || (boardChanged && !obs.move)) replan();
+    else if (obs.move) {
+      if (!settings.solver.replanEach && advancePlan(obs.move)) {
+        if (planDone()) toast('이번 턴 계획을 다 놓았습니다. 새 손패가 나오면 다시 계산합니다.');
+        renderState();
+        renderReco();
+        updateStatus();
+      } else replan();
+    } else {
+      // 카드를 회전·반전하는 등 판은 그대로: 계획은 두고 버튼 안내만 새 방향에 맞춘다
+      renderState();
+      renderReco();
+    }
+  }
+
+  function replan() {
     reco.results = [];
+    reco.progress = 0;
     renderState();
     requestSolve();
   }
@@ -3669,7 +3789,7 @@ const ui = (() => {
     }
     if (changed) {
       saveLive();
-      requestSolve();
+      if (!reco.progress) requestSolve();
     }
     if (changed || statusChanged) renderAbilities();
   }
@@ -3801,7 +3921,7 @@ const ui = (() => {
         if (k === 0) card.classList.add('now');
         const badge = document.createElement('span');
         badge.className = 'hc-badge';
-        badge.textContent = CIRCLED[k];
+        badge.textContent = CIRCLED[k + (res.offset || 0)];
         card.append(badge);
       }
       card.addEventListener('click', () => openEditor(i));
@@ -3982,13 +4102,24 @@ const ui = (() => {
     return core.makePiece(p).orients[oi];
   }
 
+  // 놓을 모양을 지금 카드에 보이는 방향에서 만들 버튼 조합. 카드를 이미 돌렸으면 남은 횟수만 안내한다.
+  function orientFor(a, step, hand) {
+    const now = cur().hand[a.piece];
+    if (now && step?.cells?.length) {
+      const target = core.cellsKey(pieces.normalize(step.cells));
+      const o = core.makePiece(now).orients.find(x => core.cellsKey(x.cells) === target);
+      if (o) return o;
+    }
+    return orientOf(hand[a.piece], a.orient);
+  }
+
   // 예: '손패 2번 ㅂ — 좌우 반전 후 시계 방향 90° 1번 → 위에서 12행·왼쪽에서 3열'
-  function actionText(a, hand) {
+  function actionText(a, hand, step) {
     if (a.type === 'dot') return `점 찍기 → 위에서 ${a.r + 1}행·왼쪽에서 ${a.c + 1}열`;
     const p = hand[a.piece];
     if (!p) return `손패 ${a.piece + 1}번`;
     if (a.type === 'swap') return `바꿔 뽑기 → 손패 ${a.piece + 1}번 ${pieceLabel(p)} 다시 뽑기`;
-    const o = orientOf(p, a.orient);
+    const o = orientFor(a, step, hand);
     const ops = [];
     if (o.flip) ops.push('좌우 반전');
     if (o.rot) ops.push(`시계 방향 90° ${o.rot}번`);
@@ -4004,7 +4135,9 @@ const ui = (() => {
       const empty = document.createElement('div');
       empty.className = 'reco-empty';
       const handCount = st.hand.filter(Boolean).length;
-      const lines = reco.pending ? ['계산 중…'] : handCount ? ['추천할 수가 없습니다.'] : ['손패를 입력하면 추천을 계산합니다.'];
+      const lines = reco.pending ? ['계산 중…']
+        : planDone() ? ['이번 턴 계획을 다 놓았습니다.', mode === 'demo' ? '새 손패를 입력하면 다시 계산합니다.' : '새 손패가 나오면 다시 계산합니다.']
+        : handCount ? ['추천할 수가 없습니다.'] : ['손패를 입력하면 추천을 계산합니다.'];
       for (const n of reco.notes) lines.push(n);
       empty.innerHTML = lines.map(l => `<p>${escapeHtml(l)}</p>`).join('');
       box.append(empty);
@@ -4019,13 +4152,15 @@ const ui = (() => {
     const shape = document.createElement('div');
     shape.className = 'reco-shape';
     const hand = reco.hand;
-    if (first.type === 'place' && hand[first.piece]) shape.append(miniGrid(orientOf(hand[first.piece], first.orient).cells, 'gold'));
+    if (first.type === 'place' && hand[first.piece]) shape.append(miniGrid(pieces.normalize(res.steps[0].cells), 'gold'));
     else shape.innerHTML = `<i class="sw ${first.type === 'dot' ? 'dot' : 'swap'}" style="width:22px;height:22px"></i>`;
     const head = document.createElement('div');
-    head.innerHTML = `<div class="reco-label">${reco.sel === 0 ? '1순위' : `대안 ${reco.sel + 1}`} · 지금 할 수</div>`;
+    const off = res.offset || 0;
+    const total = reco.results[reco.sel].steps.length;
+    head.innerHTML = `<div class="reco-label">${reco.sel === 0 ? '1순위' : `대안 ${reco.sel + 1}`} · ${off ? `계획 ${off + 1}/${total}번째 수` : '지금 할 수'}</div>`;
     const text = document.createElement('p');
     text.className = 'reco-text';
-    text.textContent = actionText(first, hand);
+    text.textContent = `${CIRCLED[off]} ${actionText(first, hand, res.steps[0])}`;
     head.append(text);
     top.append(shape, head);
     card.append(top);
@@ -4035,8 +4170,8 @@ const ui = (() => {
       seq.className = 'reco-seq';
       res.actions.slice(1).forEach((a, i) => {
         const line = document.createElement('div');
-        line.innerHTML = `<b>${CIRCLED[i + 1]}</b> `;
-        line.append(actionText(a, hand));
+        line.innerHTML = `<b>${CIRCLED[i + 1 + off]}</b> `;
+        line.append(actionText(a, hand, res.steps[i + 1]));
         seq.append(line);
       });
       card.append(seq);
@@ -4064,7 +4199,8 @@ const ui = (() => {
     card.append(foot);
     box.append(card);
 
-    if (reco.results.length > 1) {
+    // 계획을 두기 시작했으면 대안은 더 이상 맞지 않으므로 숨긴다
+    if (reco.results.length > 1 && !off) {
       const alts = document.createElement('div');
       alts.className = 'reco-alts';
       reco.results.forEach((r, i) => {
@@ -4096,7 +4232,7 @@ const ui = (() => {
   }
 
   function selectAlt(i) {
-    if (i >= reco.results.length) return;
+    if (i >= reco.results.length || reco.progress) return;
     reco.sel = i;
     renderReco();
     renderBoard();
@@ -4127,9 +4263,18 @@ const ui = (() => {
       if (st.abilities.untilNext > 0) st.abilities.untilNext--;
       if (st.hand.every(p => !p)) toast('손패 3개를 다 썼습니다. 새 손패를 입력하세요.');
     }
-    reco.results = [];
-    reco.sel = 0;
-    stateChanged();
+    if (a.type === 'swap' || settings.solver.replanEach) {
+      reco.results = [];
+      reco.sel = 0;
+      stateChanged();
+      return;
+    }
+    // 계획대로 둔 것이므로 다시 계산하지 않고 다음 수로 넘어간다
+    reco.progress++;
+    saveDemo();
+    renderState();
+    renderReco();
+    updateStatus();
   }
 
   function escapeHtml(s) {
@@ -4226,6 +4371,7 @@ const ui = (() => {
         num('solver.thetaDot', 'θ_dot', '점 찍기를 추천할 최소 이득'),
         num('solver.thetaSwap', 'θ_swap', '바꿔 뽑기를 추천할 최소 이득'),
         num('solver.swapMinDict', '바꿔 뽑기 최소 사전 크기', '이보다 작으면 정보 부족', { min: 1, int: true }),
+        { path: 'solver.replanEach', label: '놓을 때마다 다시 계산', desc: '끄면 계획대로 두는 동안은 다음 수만 보여 주고, 다르게 두거나 손패가 바뀔 때 다시 계산', kind: 'bool' },
       ],
     },
     {
