@@ -497,6 +497,8 @@ const config = (() => {
     { key: 'nearFull9',      value: 160,   label: '거의 찬 줄 (9칸)',  desc: '행당' },
     { key: 'verticalStack',  value: 120,   label: '세로 정렬',         desc: '거의 찬 줄이 위아래로 연속, 줄당' },
     { key: 'unplaceable',    value: -400,  label: '배치 불가 조각',    desc: '사전 조각 중 놓을 곳 없는 것, 종당' },
+    { key: 'mobility',       value: 30,    label: '놓을 자리 여유',    desc: '사전 조각이 놓일 수 있는 자리 수(log2) 평균' },
+    { key: 'unfillable',     value: -100,  label: 'ㆍ로만 채울 칸',     desc: 'ㆍ 말고는 어떤 조각으로도 덮을 수 없는 빈칸, 칸당' },
     { key: 'abilityGain',    value: 100,   label: '능력 획득',         desc: '지우는 줄의 아이콘, 개당' },
     { key: 'abilityHeld',    value: 100,   label: '능력 보유',         desc: '보유 1개당 (생존 우선)' },
     { key: 'stuckNoAbility', value: -2000, label: '막힘 (능력 0개)',   desc: '능력 없이 놓을 수 없는 조각이 생김' },
@@ -927,19 +929,59 @@ function coreFactory() {
     return { leaves, nodes, pruned };
   }
 
+  // 턴이 끝난 판을 사전 조각 전부로 훑는다.
+  //   mobility: 조각마다 놓을 수 있는 자리 수의 log2(1+n)를 등장 확률로 평균 (다음 손패를 받아 낼 여유)
+  //   unfill:   ㆍ(1칸) 말고는 어떤 조각으로도 덮을 수 없는 빈칸 수 (그 줄은 점 찍기나 ㆍ로만 지울 수 있음)
+  //   unpl:     놓을 자리가 아예 없는 조각 종류 수
+  function scanBoard(board, dict) {
+    if (!dict.length) return { mobility: 0, unfill: 0, unpl: 0 };
+    const cover = new Array(ROWS).fill(0);
+    let mob = 0, wsum = 0, unpl = 0;
+    for (const p of dict) {
+      let n = 0;
+      for (const o of p.orients) {
+        for (let r = 0; r <= ROWS - o.h; r++) {
+          for (let c = 0; c <= COLS - o.w; c++) {
+            if (!fits(board, o, r, c)) continue;
+            n++;
+            if (p.n > 1) for (let i = 0; i < o.h; i++) cover[r + i] |= o.rows[i] << c;
+          }
+        }
+      }
+      if (!n) unpl++;
+      mob += p.p * Math.log2(1 + n);
+      wsum += p.p;
+    }
+    let unfill = 0;
+    for (let r = 0; r < ROWS; r++) unfill += popcount(~board[r] & FULL & ~cover[r]);
+    return { mobility: mob / wsum, unfill, unpl };
+  }
+
+  // 1차 평가: 판 모양·점수·능력만 (사전 훑기 없이 빠르게)
   function leafEval(ctx, node) {
     const w = ctx.w;
     const f = boardFeatures(node.board);
     let remaining = 0;
     ctx.hand.forEach((p, i) => { if (p && !(node.used & (1 << i))) remaining++; });
-    let unpl = 0;
-    for (const p of ctx.dict) if (!canPlaceAny(node.board, p)) unpl++;
     const held = node.held.dot + node.held.swap;
-    let total = w.score * node.gained + w.abilityGain * node.icons + staticEval(f, w)
-      + w.abilityHeld * held + w.unplaceable * (unpl + remaining);
-    if (held === 0 && (unpl > 0 || remaining > 0)) total += w.stuckNoAbility;
-    return { total, f, unpl, remaining };
+    const total = w.score * node.gained + w.abilityGain * node.icons + staticEval(f, w)
+      + w.abilityHeld * held + w.unplaceable * remaining;
+    return { total, f, unpl: 0, remaining, held, mobility: 0, unfill: 0 };
   }
+
+  // 마무리 평가: 1차 평가 상위 후보만 사전 조각으로 훑어 다음 턴의 여유를 더한다
+  function finishEval(ctx, e, board) {
+    const w = ctx.w;
+    const sc = scanBoard(board, ctx.dict);
+    e.unpl = sc.unpl;
+    e.mobility = sc.mobility;
+    e.unfill = sc.unfill;
+    e.total += w.unplaceable * sc.unpl + (w.mobility || 0) * sc.mobility + (w.unfillable || 0) * sc.unfill;
+    if (e.held === 0 && (sc.unpl > 0 || e.remaining > 0)) e.total += w.stuckNoAbility;
+    return e;
+  }
+
+  const RESCAN = 96;   // 마무리 평가를 할 상위 후보 수
 
   function rank(ctx, leaves) {
     for (const lf of leaves) {
@@ -947,7 +989,16 @@ function coreFactory() {
       lf.total = e.total;
       lf.eval = e;
     }
-    return leaves.sort((a, b) => b.total - a.total);
+    leaves.sort((a, b) => b.total - a.total);
+    const n = Math.min(leaves.length, RESCAN);
+    for (let i = 0; i < n; i++) {
+      const lf = leaves[i];
+      lf.total = finishEval(ctx, lf.eval, lf.board).total;
+    }
+    // 훑지 않은 후보가 앞서지 않도록, 훑은 후보들 뒤로 보낸다
+    const head = leaves.slice(0, n).sort((a, b) => b.total - a.total);
+    for (let i = n; i < leaves.length; i++) leaves[i].total -= 1e6;
+    return head.concat(leaves.slice(n));
   }
 
   function bestLeaf(ctx, start, B) {
@@ -1092,6 +1143,7 @@ function coreFactory() {
     const ev = cd.node && cd.node.eval;
     if (ev && ev.remaining) out.push(`손패 ${ev.remaining}개는 이번 턴에 놓을 자리가 없음`);
     if (ev && ev.unpl) out.push(`사전 조각 중 ${ev.unpl}종은 이 판에 놓을 자리가 없음`);
+    if (ev && ev.unfill) out.push(`ㆍ로만 채울 수 있는 빈칸 ${ev.unfill}개`);
     if (!out.length) out.push('줄을 지우지 못하는 턴이라 판 모양(빈 틈, 막힌 칸)이 가장 좋아지는 자리를 골랐습니다.');
     return out;
   }
@@ -3444,7 +3496,7 @@ const ui = (() => {
   /* ---------- 화면 공유: 인식과 확정 ---------- */
 
   const RC = config.RECOG_CONST;
-  const recog = { lastKey: null, stable: 0, confirmed: null, confirmedKey: null, issue: null, lastRead: null, unknown: 0, preview: false, iconMiss: {} };
+  const recog = { lastKey: null, stable: 0, confirmed: null, confirmedKey: null, issue: null, lastRead: null, unknown: 0, preview: false, iconMiss: {}, drift: [], firstWait: false };
   let correcting = false, ctool = 'fill', liveHover = null, liveDrag = null;
   let baseLabCache = { src: null, lab: null };
 
@@ -3454,7 +3506,7 @@ const ui = (() => {
   }
 
   function resetRecognition() {
-    Object.assign(recog, { lastKey: null, stable: 0, confirmed: null, confirmedKey: null, issue: null, lastRead: null, unknown: 0, preview: false, iconMiss: {} });
+    Object.assign(recog, { lastKey: null, stable: 0, confirmed: null, confirmedKey: null, issue: null, lastRead: null, unknown: 0, preview: false, iconMiss: {}, drift: [], firstWait: false });
     const fresh = emptyDemo();
     live.board = fresh.board;
     live.items = fresh.items;
@@ -3521,6 +3573,31 @@ const ui = (() => {
     const snap = prev ? snapBoard(prev, read) : null;
     recog.snap = snap;
 
+    // 확정된 판과 계속(8프레임, 약 1초) 반대로 보이는 칸은 처음 확정이 틀렸던 것으로 보고 고친다.
+    // 미리보기·커서처럼 잠깐 가리는 것은 확률이 애매해 세지 않는다.
+    if (snap && prev) {
+      const fixed = [];
+      for (let i = 0; i < ROWS * COLS; i++) {
+        const r = Math.floor(i / COLS), c = i % COLS;
+        const p = read.cells[i].p, b = (snap.board[r] >> c) & 1;
+        const off = (p > 0.85 && !b) || (p < 0.15 && b);
+        recog.drift[i] = off ? (recog.drift[i] || 0) + 1 : 0;
+        if (recog.drift[i] >= 8) fixed.push([r, c]);
+      }
+      if (fixed.length) {
+        for (const [r, c] of fixed) {
+          prev.board[r] ^= 1 << c;
+          snap.board[r] ^= 1 << c;
+          recog.drift[r * COLS + c] = 0;
+        }
+        live.board = prev.board.slice();
+        toast(`화면과 계속 다르게 보이는 칸 ${fixed.length}개를 화면대로 고쳤습니다.`);
+        reco.results = [];
+        reco.progress = 0;
+        requestSolve();
+      }
+    }
+
     const cands = dictCandidates();
     const hand = px.hand.map((r, i) => {
       const h = recognize.readCard(img, r, cands, (px.board.w / COLS) * settings.cardCellRatio);
@@ -3542,12 +3619,21 @@ const ui = (() => {
     if (key === recog.lastKey) recog.stable++;
     else { recog.lastKey = key; recog.stable = 1; }
 
+    // 첫 확정은 엄격하게: 미리보기가 없고 불확실한 칸이 거의 없을 때, 4프레임 이상 같을 때만
+    const unsure = read.cells.filter(x => x.cls === 'unsure').length;
+    recog.firstWait = !prev && (read.preview || unsure > 2);
     if (key === recog.confirmedKey) {
       if (recog.issue) { recog.issue = null; setAlert(null); }
+    } else if (!prev && (recog.firstWait || recog.stable < 4)) {
+      // 기다린다
     } else if (recog.stable >= RC.stableFrames) {
       const check = consistency(prev, obs, snap ? 0 : merged.issues);
       if (check.ok) confirmObs(obs, key, check);
-      else if (recog.issue?.key !== key) {
+      else if (recog.issue?.key === key && recog.stable >= 20) {
+        // 같은 화면이 2초 넘게 그대로면 잠깐의 연출이 아니므로 화면대로 확정한다
+        confirmObs(obs, key, { ok: true, forced: true });
+        toast('직전 상태와 맞지 않는 화면이 계속되어 화면대로 다시 맞췄습니다.');
+      } else if (recog.issue?.key !== key) {
         recog.issue = { key, obs, check };
         setAlert(`인식 결과가 직전 상태와 맞지 않습니다: ${check.msg}. 판이 실제로 이렇게 바뀌었으면 확정하고, 아니면 보정하세요.`, true, [
           ['이대로 확정', () => { if (recog.issue) confirmObs(recog.issue.obs, recog.issue.key, { ok: true, forced: true }); }],
@@ -3603,7 +3689,7 @@ const ui = (() => {
       for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (!bit(prev.board, r, c)) tryCells([[r, c]], { kind: 'dot' });
     }
     // 아무 수도 없다고 보는 것보다 확실히 나아야 수를 둔 것으로 본다 (미리보기 칸은 확률 0.5라 차이를 만들지 않는다)
-    const move = best.gain >= 3 ? best.move : null;
+    const move = best.gain >= 2 ? best.move : null;
     const board = prev.board.slice();
     const cleared = [];
     if (move) {
@@ -3821,7 +3907,8 @@ const ui = (() => {
 
   function renderLiveNote() {
     const notes = [];
-    if (recog.preview) notes.push('마우스 미리보기가 보입니다. 마우스를 판 밖으로 옮겨 주세요. 미리보기가 떠 있는 동안은 직전 상태를 유지합니다.');
+    if (recog.firstWait) notes.push('처음 판을 읽는 중입니다. 마우스를 게임 판 밖으로 옮겨 주세요.');
+    else if (recog.preview) notes.push('마우스 미리보기가 보입니다. 미리보기가 떠 있는 동안은 직전 상태를 유지합니다.');
     if (recog.unknown) notes.push(`아직 확정하지 못한 칸 ${recog.unknown}개는 빈칸으로 둡니다.`);
     if (settings.baseline?.length === ROWS * COLS * 3) notes.push('예전 형식의 빈 판 기준입니다. 캘리브레이션에서 빈 판 기준을 다시 저장하면 파란 조각을 더 잘 읽습니다.');
     if (recog.cursorOnCard) notes.push('손패 카드 위의 커서가 조각을 가려 직전 모양을 유지합니다.');
